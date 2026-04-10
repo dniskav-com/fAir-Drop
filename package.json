@@ -1,0 +1,20 @@
+{
+  "name": "fairdrop",
+  "version": "1.0.0",
+  "description": "fAir Drop: P2P file sharing in the browser via WebRTC",
+  "main": "server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node server.js",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "serve": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "qrcode": "^1.5.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
