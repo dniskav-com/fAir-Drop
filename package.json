@@ -4,7 +4,7 @@
   "description": "fAir Drop: P2P file sharing in the browser via WebRTC",
   "main": "server.js",
   "scripts": {
-    "build": "esbuild src/client/main.ts --bundle --format=esm --target=es2022 --outdir=public/app --sourcemap && sed -i '' \"s/main\\.js?v=[0-9]*/main.js?v=$(date +%s)/g\" public/index.html",
+    "build": "esbuild src/client/main.ts --bundle --format=esm --target=es2022 --outdir=public/app --sourcemap && sed -i \"s/main\\.js?v=[0-9]*/main.js?v=$(date +%s)/g\" public/index.html",
     "start": "npm run build && node server.js",
     "dev": "esbuild src/client/main.ts --bundle --format=esm --target=es2022 --outdir=public/app --sourcemap --watch",
     "serve": "node server.js"
