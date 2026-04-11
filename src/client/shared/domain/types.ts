@@ -1,39 +1,39 @@
-export type Role = 'creator' | 'joiner';
-export type ConnectionStatus = 'waiting' | 'connected' | 'relay' | 'disconnected';
+export type Role = 'creator' | 'joiner'
+export type ConnectionStatus = 'waiting' | 'connected' | 'relay' | 'disconnected'
 
 export interface PeerInfo {
-  ip: string;
-  browser: string;
-  mobile: boolean;
-  connectedAt: string | null;
+  ip: string
+  browser: string
+  mobile: boolean
+  connectedAt: string | null
 }
 
 export interface ExpiryConfig {
-  time?: number;
-  downloads?: number;
+  time?: number
+  downloads?: number
 }
 
 export interface FileStartMessage {
-  type: 'file-start';
-  fileId: string;
-  name: string;
-  size: number;
-  mimeType: string;
-  totalChunks: number;
-  expiry?: ExpiryConfig;
+  type: 'file-start'
+  fileId: string
+  name: string
+  size: number
+  mimeType: string
+  totalChunks: number
+  expiry?: ExpiryConfig
 }
 
 export interface FileEndMessage {
-  type: 'file-end';
-  fileId: string;
+  type: 'file-end'
+  fileId: string
 }
 
 export interface FileDeletedMessage {
-  type: 'file-deleted';
-  fileId: string;
+  type: 'file-deleted'
+  fileId: string
 }
 
-export type TransferMessage = FileStartMessage | FileEndMessage | FileDeletedMessage;
+export type TransferMessage = FileStartMessage | FileEndMessage | FileDeletedMessage
 
 export type SignalMessage =
   | { type: 'room-created'; code: string }
@@ -49,11 +49,12 @@ export type SignalMessage =
   | { type: 'peer-disconnected' }
   | { type: 'kicked'; reason?: string }
   | { type: 'banned'; reason?: string }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
 
 export interface IncomingFile {
-  meta: FileStartMessage;
-  chunks: ArrayBuffer[];
-  received: number;
-  itemEl: HTMLLIElement;
+  meta: FileStartMessage
+  chunks: ArrayBuffer[]
+  received: number
+  itemEl?: HTMLLIElement
+  direction?: 'sending' | 'receiving'
 }

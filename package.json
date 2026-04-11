@@ -4,17 +4,25 @@
   "description": "fAir Drop: P2P file sharing in the browser via WebRTC",
   "main": "server.js",
   "scripts": {
-    "build": "tsc",
+    "build": "esbuild src/client/main.ts --bundle --format=esm --target=es2022 --outdir=public/app --sourcemap && sed -i '' \"s/main\\.js?v=[0-9]*/main.js?v=$(date +%s)/g\" public/index.html",
     "start": "npm run build && node server.js",
-    "dev": "tsc --watch --preserveWatchOutput",
+    "dev": "esbuild src/client/main.ts --bundle --format=esm --target=es2022 --outdir=public/app --sourcemap --watch",
     "serve": "node server.js"
   },
   "dependencies": {
+    "eslint": "^10.2.0",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.3.2",
+    "prettier": "^3.8.2",
     "qrcode": "^1.5.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/react": "^18.2.21",
+    "@types/react-dom": "^18.2.7",
+    "esbuild": "^0.18.11",
     "typescript": "^5.9.3"
   }
 }

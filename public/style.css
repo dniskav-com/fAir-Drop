@@ -39,7 +39,9 @@
 
     --blue: #007aff;
     --blue-strong: #0057b8;
+    --green-weak: #cdeecd;
     --green: #34c759;
+    --green-strong: #0abb52;
     --red: #ff3b30;
     --amber: #ff9500;
     --teal: #00c7be;
@@ -53,7 +55,43 @@
     --radius: 8px;
     --radius-sm: 6px;
     --space: 16px;
-    --font: "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Segoe UI", sans-serif;
+    --font:
+      'Poppins', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+      sans-serif;
+  }
+
+  /* Dark theme tokens — Apple-like tones */
+  .dark,
+  [data-theme='dark'] {
+    color-scheme: dark;
+    --page: #0b0b0c;
+    --page-2: #121214;
+    --ink: #f2f2f7;
+    --ink-soft: #d1d1d6;
+    --ink-muted: #8e8e93;
+
+    --panel: color-mix(in srgb, rgba(255, 255, 255, 0.02), transparent);
+    --panel-solid: #1c1c1e;
+    --panel-tint: #141416;
+    --line: rgba(255, 255, 255, 0.06);
+
+    --blue: #0a84ff;
+    --blue-strong: #007aff;
+    --green-weak: #1f7a3b;
+    --green: #30d158;
+    --green-strong: #00c853;
+    --red: #ff453a;
+    --amber: #ff9f0a;
+    --teal: #19e6c7;
+    --cyan: #60bfff;
+    --graphite: #2c2c2e;
+
+    --shadow: 0 12px 40px rgb(0 0 0 / 60%);
+    --shadow-soft: 0 6px 16px rgb(0 0 0 / 40%);
+    --blur: blur(10px) saturate(1.1);
+
+    --font:
+      'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   }
 }
 
@@ -76,7 +114,7 @@
   }
 
   body::before {
-    content: "";
+    content: '';
     position: fixed;
     inset: 0;
     pointer-events: none;
@@ -176,6 +214,17 @@
     isolation: isolate;
   }
 
+  /* Make the brand mark act like a large primary button */
+  #brand-mark {
+    cursor: pointer;
+    outline: none;
+  }
+
+  #brand-mark:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--green), white 18%);
+    outline-offset: 6px;
+  }
+
   .radar-ring {
     position: absolute;
     inset: calc(var(--i, 0) * 18px);
@@ -184,9 +233,18 @@
     background: color-mix(in srgb, var(--blue), transparent 94%);
   }
 
-  .radar-ring:nth-child(1) { --i: 0; opacity: 0.24; }
-  .radar-ring:nth-child(2) { --i: 1; opacity: 0.42; }
-  .radar-ring:nth-child(3) { --i: 2; opacity: 0.66; }
+  .radar-ring:nth-child(1) {
+    --i: 0;
+    opacity: 0.24;
+  }
+  .radar-ring:nth-child(2) {
+    --i: 1;
+    opacity: 0.42;
+  }
+  .radar-ring:nth-child(3) {
+    --i: 2;
+    opacity: 0.66;
+  }
 
   .radar-core {
     z-index: 1;
@@ -195,14 +253,28 @@
     inline-size: 52px;
     aspect-ratio: 1;
     border-radius: 50%;
-    background:
-      linear-gradient(160deg, color-mix(in srgb, var(--cyan), white 12%), var(--blue) 62%, var(--blue-strong));
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--cyan), white 12%),
+      var(--blue) 62%,
+      var(--blue-strong)
+    );
     box-shadow: 0 10px 24px rgb(0 122 255 / 28%);
+  }
+
+  /* When creating a room, show the brand-mark as green */
+  #brand-mark.creating .radar-core {
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--green), white 12%),
+      var(--green) 64%
+    );
+    box-shadow: 0 14px 34px rgb(52 199 89 / 28%);
   }
 
   .radar-core::before,
   .radar-core::after {
-    content: "";
+    content: '';
     position: absolute;
     border: 2px solid rgb(255 255 255 / 92%);
     border-block-start: 0;
@@ -230,11 +302,33 @@
     text-transform: uppercase;
   }
 
+  .brand-sub {
+    color: var(--ink-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    margin-top: -2px;
+    text-transform: none;
+  }
+
   .brand-lockup h1 {
     color: var(--ink);
     font-size: 42px;
     font-weight: 760;
     letter-spacing: 0;
+  }
+
+  /* Adjust the initial: use a friendly display font for brand */
+  .brand-initial {
+    font-family: 'Poppins', var(--font);
+    font-weight: 700;
+    display: inline-block;
+    margin-inline-end: 6px;
+    color: var(--blue-strong);
+    font-size: 46px;
+    transform: translateY(-2px);
+    letter-spacing: -0.02em;
+    line-height: 1;
   }
 
   .tagline {
@@ -259,7 +353,7 @@
 
   .divider::before,
   .divider::after {
-    content: "";
+    content: '';
     block-size: 1px;
     background: var(--line);
   }
@@ -270,17 +364,20 @@
     gap: 8px;
   }
 
-  input[type="text"],
+  input[type='text'],
   .expiry-input {
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
     color: var(--ink);
     background: rgb(255 255 255 / 88%);
     outline: none;
-    transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      background 160ms ease;
   }
 
-  input[type="text"] {
+  input[type='text'] {
     inline-size: 100%;
     padding: 10px 12px;
     text-align: center;
@@ -290,13 +387,13 @@
     font-weight: 700;
   }
 
-  input[type="text"]::placeholder {
+  input[type='text']::placeholder {
     color: var(--ink-muted);
     letter-spacing: 0.12em;
     font-size: 13px;
   }
 
-  input[type="text"]:focus,
+  input[type='text']:focus,
   .expiry-input:focus {
     border-color: color-mix(in srgb, var(--blue), white 10%);
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue), transparent 84%);
@@ -313,7 +410,11 @@
     border-radius: var(--radius);
     cursor: pointer;
     font-weight: 700;
-    transition: transform 140ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+    transition:
+      transform 140ms ease,
+      border-color 160ms ease,
+      background 160ms ease,
+      box-shadow 160ms ease;
   }
 
   .btn {
@@ -333,6 +434,9 @@
     background: linear-gradient(180deg, color-mix(in srgb, var(--blue), white 18%), var(--blue));
     box-shadow: 0 10px 24px rgb(0 122 255 / 24%);
   }
+
+  /* Keep `#btn-create` visible (used by compiled JS). If you want to hide it later,
+     ensure the built JS is regenerated. */
 
   .btn-secondary,
   .btn-ghost,
@@ -506,10 +610,38 @@
     background: white;
   }
 
+  /* Default QR size (smaller than before) and responsive adjustment */
   .room-qr {
-    inline-size: min(190px, 70vw);
+    inline-size: min(152px, 56vw); /* ~80% of previous 190px / 70vw */
     aspect-ratio: 1;
     image-rendering: pixelated;
+  }
+
+  /* Sidebar modifier: make sure QR fits nicely in the right column */
+  .qr-card--sidebar {
+    margin-block-start: 18px;
+    background: transparent;
+    border: none;
+    padding: 8px 6px 12px 6px;
+  }
+
+  @media (min-width: 760px) {
+    /* Ensure the QR card sits visually in the right column and is centered */
+    .clients-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .qr-card--sidebar {
+      width: 100%;
+      max-inline-size: 220px;
+      box-sizing: border-box;
+    }
+
+    .room-qr {
+      inline-size: min(152px, 80%);
+    }
   }
 
   .qr-card figcaption {
@@ -535,9 +667,11 @@
     margin: 14px;
     border: 1.5px dashed color-mix(in srgb, var(--graphite), transparent 48%);
     border-radius: var(--radius);
-    background:
-      linear-gradient(180deg, rgb(255 255 255 / 78%), rgb(242 247 249 / 78%));
-    transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+    background: linear-gradient(180deg, rgb(255 255 255 / 78%), rgb(242 247 249 / 78%));
+    transition:
+      border-color 180ms ease,
+      background 180ms ease,
+      transform 180ms ease;
   }
 
   .drop-content {
@@ -596,7 +730,7 @@
     font-size: 12px;
   }
 
-  .expiry-option input[type="checkbox"] {
+  .expiry-option input[type='checkbox'] {
     accent-color: var(--blue);
   }
 
@@ -608,7 +742,7 @@
     font-size: 12px;
   }
 
-  .expiry-option:not(:has(input[type="checkbox"]:checked)) .expiry-input {
+  .expiry-option:not(:has(input[type='checkbox']:checked)) .expiry-input {
     opacity: 0.44;
     pointer-events: none;
   }
@@ -725,7 +859,30 @@
   }
 
   .file-icon {
-    font-size: 20px;
+    display: grid;
+    place-items: center;
+    inline-size: 44px;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--blue), white 92%),
+      color-mix(in srgb, var(--teal), white 92%)
+    );
+    color: var(--blue-strong);
+    font-size: 0; /* svg will provide visuals */
+  }
+
+  .file-icon .icon-svg svg {
+    width: 22px;
+    height: 22px;
+    color: inherit;
+    stroke: currentColor;
+    fill: none;
+  }
+  .file-icon .icon-svg svg path,
+  .file-icon .icon-svg svg rect {
+    stroke: currentColor;
   }
 
   .file-name {
@@ -756,7 +913,9 @@
     block-size: 100%;
     border-radius: inherit;
     background: linear-gradient(90deg, var(--teal), var(--blue));
-    transition: inline-size 120ms linear, width 120ms linear;
+    transition:
+      inline-size 120ms linear,
+      width 120ms linear;
   }
 
   .badge,
@@ -766,6 +925,15 @@
     font-size: 11px;
     font-weight: 750;
     white-space: nowrap;
+  }
+
+  /* Ensure badges inside file-actions are vertically centered */
+  .file-actions .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 28px;
+    margin-right: 8px;
   }
 
   .badge-sending,
@@ -781,8 +949,8 @@
   }
 
   .badge-done {
-    color: var(--green);
-    background: color-mix(in srgb, var(--green), transparent 86%);
+    color: var(--green-strong);
+    background: color-mix(in srgb, var(--green-weak), transparent 86%);
   }
 
   .expiry-tag.urgent {
@@ -811,10 +979,18 @@
 }
 
 @layer states {
-  .status-waiting { color: var(--amber); }
-  .status-connected,
-  .status-relay { color: var(--green); }
-  .status-disconnected { color: var(--red); }
+  .status-waiting {
+    color: var(--amber);
+  }
+  .status-connected {
+    color: var(--green-strong);
+  }
+  .status-relay {
+    color: var(--green);
+  }
+  .status-disconnected {
+    color: var(--red);
+  }
 
   .status-waiting .status-dot {
     animation: pulse 1.4s ease-in-out infinite;
@@ -831,8 +1007,11 @@
 
   .drop-zone.drag-over {
     border-color: var(--blue);
-    background:
-      linear-gradient(180deg, color-mix(in srgb, var(--blue), white 90%), color-mix(in srgb, var(--teal), white 88%));
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--blue), white 90%),
+      color-mix(in srgb, var(--teal), white 88%)
+    );
     transform: translateY(-1px);
   }
 

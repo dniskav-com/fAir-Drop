@@ -1,143 +1,174 @@
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="color-scheme" content="light" />
-  <meta name="theme-color" content="#f6f8fb" />
-  <meta
-    name="description"
-    content="fAir Drop comparte archivos entre dos dispositivos de tu red local usando WebRTC."
-  />
-  <title>fAir Drop</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <main id="app-shell">
-    <section id="screen-home" class="screen active" aria-labelledby="home-title">
-      <div class="brand-lockup">
-        <span class="brand-mark" aria-hidden="true">
-          <span class="radar-ring"></span>
-          <span class="radar-ring"></span>
-          <span class="radar-ring"></span>
-          <span class="radar-core"></span>
-        </span>
-        <p class="eyebrow">red local</p>
-        <h1 id="home-title">fAir Drop</h1>
-        <p class="tagline">Pasa archivos directo entre tus dispositivos.</p>
-      </div>
-
-      <form class="home-actions" autocomplete="off">
-        <button id="btn-create" class="btn btn-primary" type="button">Crear sala</button>
-        <div class="divider" role="separator"><span>o</span></div>
-        <div class="join-form">
-          <label class="sr-only" for="input-code">Codigo de sala</label>
-          <input
-            id="input-code"
-            type="text"
-            placeholder="AB12"
-            maxlength="4"
-            inputmode="text"
-            pattern="[A-Za-z0-9]{4}"
-            autocapitalize="characters"
-            autocomplete="off"
-            spellcheck="false"
-            aria-describedby="home-error"
-          />
-          <button id="btn-join" class="btn btn-secondary" type="button">Unirse</button>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f6f8fb" />
+    <meta
+      name="description"
+      content="fAir Drop comparte archivos entre dos dispositivos de tu red local usando WebRTC." />
+    <title>fAir Drop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Poppins:wght@600;700;800&display=swap"
+      rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main id="app-shell">
+      <section id="screen-home" class="screen active" aria-labelledby="home-title">
+        <div class="brand-lockup">
+          <span
+            id="brand-mark"
+            class="brand-mark"
+            role="button"
+            aria-pressed="false"
+            tabindex="0">
+            <span class="radar-ring"></span>
+            <span class="radar-ring"></span>
+            <span class="radar-ring"></span>
+            <span class="radar-core"></span>
+          </span>
+          <p class="eyebrow">Toca para crear sala</p>
+          <p class="brand-sub">red local</p>
+          <h1 id="home-title">fAir Drop</h1>
+          <p class="tagline">Pasa archivos directo entre tus dispositivos.</p>
         </div>
-        <button id="btn-scan-qr" class="btn btn-ghost" type="button">Escanear QR</button>
-        <p id="home-error" class="error-msg hidden" role="status" aria-live="polite"></p>
-      </form>
 
-      <dialog id="qr-scanner" class="scanner-dialog" aria-labelledby="scanner-title">
-        <form method="dialog" class="scanner-card">
-          <div class="scanner-header">
-            <h2 id="scanner-title">Escanear sala</h2>
-            <button id="btn-close-scanner" class="btn-icon" type="button">Cerrar</button>
+        <form class="home-actions" autocomplete="off">
+          <button id="btn-create" class="btn btn-primary" type="button">Crear sala</button>
+          <div class="divider" role="separator"><span>o</span></div>
+          <div class="join-form">
+            <label class="sr-only" for="input-code">Codigo de sala</label>
+            <input
+              id="input-code"
+              type="text"
+              placeholder="AB12"
+              maxlength="4"
+              inputmode="text"
+              pattern="[A-Za-z0-9]{4}"
+              autocapitalize="characters"
+              autocomplete="off"
+              spellcheck="false"
+              aria-describedby="home-error" />
+            <button id="btn-join" class="btn btn-secondary" type="button">Unirse</button>
           </div>
-          <video id="qr-video" class="qr-video" playsinline muted></video>
-          <p id="scanner-status" class="scanner-status">Apunta la camara al QR.</p>
+          <button id="btn-scan-qr" class="btn btn-ghost" type="button">Escanear QR</button>
+          <p id="home-error" class="error-msg hidden" role="status" aria-live="polite"></p>
         </form>
-      </dialog>
-    </section>
 
-    <section id="screen-room" class="screen" aria-labelledby="room-title">
-      <header class="room-header">
-        <h1 id="room-title" class="logo-small">fAir Drop</h1>
-        <div class="room-info" aria-label="Codigo de sala">
-          <span id="room-code-display" class="room-code"></span>
-          <button id="btn-copy-code" class="btn-icon" type="button" aria-label="Copiar codigo">Copiar</button>
-        </div>
-        <div id="connection-status" class="status status-waiting" role="status" aria-live="polite">
-          <span class="status-dot" aria-hidden="true"></span>
-          <span id="status-text">Esperando...</span>
-        </div>
-      </header>
-
-      <aside id="share-banner" class="share-banner hidden" aria-label="Link para compartir">
-        <p class="share-label">Comparte este link con el otro dispositivo:</p>
-        <div class="share-row">
-          <span id="share-url" class="share-url"></span>
-          <button id="btn-copy-link" class="btn btn-secondary" type="button">Copiar link</button>
-          <button id="btn-native-share" class="btn btn-secondary" type="button">Compartir</button>
-        </div>
-        <figure class="qr-card">
-          <img id="room-qr" class="room-qr" alt="QR para entrar a la sala" />
-          <figcaption>Escanea este QR desde el otro dispositivo.</figcaption>
-        </figure>
-      </aside>
-
-      <div class="room-body">
-        <section class="room-main" aria-label="Transferencia de archivos">
-          <div id="drop-zone" class="drop-zone disabled">
-            <div id="drop-waiting" class="drop-content">
-              <span class="drop-icon" aria-hidden="true">...</span>
-              <p class="drop-label">Esperando al otro dispositivo...</p>
-              <p class="drop-sub">Comparte el link para conectar</p>
+        <dialog id="qr-scanner" class="scanner-dialog" aria-labelledby="scanner-title">
+          <form method="dialog" class="scanner-card">
+            <div class="scanner-header">
+              <h2 id="scanner-title">Escanear sala</h2>
+              <button id="btn-close-scanner" class="btn-icon" type="button">Cerrar</button>
             </div>
+            <video id="qr-video" class="qr-video" playsinline muted></video>
+            <p id="scanner-status" class="scanner-status">Apunta la camara al QR.</p>
+          </form>
+        </dialog>
+      </section>
 
-            <div id="drop-ready" class="drop-content" style="display: none">
-              <span class="drop-icon" aria-hidden="true">+</span>
-              <p class="drop-label">Arrastra archivos aqui</p>
-              <p class="drop-sub">o haz clic en cualquier parte</p>
-              <label class="btn btn-secondary" for="file-input">Seleccionar archivos</label>
-              <input id="file-input" type="file" multiple hidden />
-
-              <fieldset class="expiry-bar">
-                <legend>Opciones</legend>
-                <label class="expiry-option">
-                  <input type="checkbox" id="exp-time-on" />
-                  <span>Expira en</span>
-                  <input type="number" id="exp-time-val" class="expiry-input" min="1" max="3600" value="30" />
-                  <span>seg</span>
-                </label>
-                <label class="expiry-option">
-                  <input type="checkbox" id="exp-dl-on" />
-                  <span>Max</span>
-                  <input type="number" id="exp-dl-val" class="expiry-input" min="1" max="99" value="1" />
-                  <span>descarga(s)</span>
-                </label>
-              </fieldset>
-            </div>
+      <section id="screen-room" class="screen" aria-labelledby="room-title">
+        <header class="room-header">
+          <h1 id="room-title" class="logo-small">fAir Drop</h1>
+          <div class="room-info" aria-label="Codigo de sala">
+            <span id="room-code-display" class="room-code"></span>
+            <button id="btn-copy-code" class="btn-icon" type="button" aria-label="Copiar codigo">
+              Copiar
+            </button>
           </div>
+          <div
+            id="connection-status"
+            class="status status-waiting"
+            role="status"
+            aria-live="polite">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="status-text">Esperando...</span>
+          </div>
+          <p id="room-error" class="error-msg hidden" role="status" aria-live="polite"></p>
+        </header>
 
-          <section id="file-list-section" class="file-list-section hidden" aria-labelledby="files-title">
-            <h2 id="files-title" class="section-title">Archivos</h2>
-            <ul id="file-list" class="file-list"></ul>
-          </section>
-        </section>
-
-        <aside class="clients-panel" aria-labelledby="clients-title">
-          <h2 id="clients-title" class="section-title">Conexiones</h2>
-          <ul id="clients-list" class="clients-list">
-            <li class="client-empty">Esperando...</li>
-          </ul>
+        <aside id="share-banner" class="share-banner hidden" aria-label="Link para compartir">
+          <p class="share-label">Comparte este link con el otro dispositivo:</p>
+          <div class="share-row">
+            <span id="share-url" class="share-url"></span>
+            <button id="btn-copy-link" class="btn btn-secondary" type="button">Copiar link</button>
+            <button id="btn-native-share" class="btn btn-secondary" type="button">Compartir</button>
+          </div>
         </aside>
-      </div>
-    </section>
-  </main>
 
-  <script type="module" src="app/main.js"></script>
-</body>
+        <div class="room-body">
+          <section class="room-main" aria-label="Transferencia de archivos">
+            <div id="drop-zone" class="drop-zone disabled">
+              <div id="drop-waiting" class="drop-content">
+                <span class="drop-icon" aria-hidden="true">...</span>
+                <p class="drop-label">Esperando al otro dispositivo...</p>
+                <p class="drop-sub">Comparte el link para conectar</p>
+              </div>
+
+              <div id="drop-ready" class="drop-content" style="display: none">
+                <span class="drop-icon" aria-hidden="true">+</span>
+                <p class="drop-label">Arrastra archivos aqui</p>
+                <p class="drop-sub">o haz clic en cualquier parte</p>
+                <label class="btn btn-secondary" for="file-input">Seleccionar archivos</label>
+                <input id="file-input" type="file" multiple hidden />
+
+                <fieldset class="expiry-bar">
+                  <legend>Opciones</legend>
+                  <label class="expiry-option">
+                    <input type="checkbox" id="exp-time-on" />
+                    <span>Expira en</span>
+                    <input
+                      type="number"
+                      id="exp-time-val"
+                      class="expiry-input"
+                      min="1"
+                      max="3600"
+                      value="30" />
+                    <span>seg</span>
+                  </label>
+                  <label class="expiry-option">
+                    <input type="checkbox" id="exp-dl-on" />
+                    <span>Max</span>
+                    <input
+                      type="number"
+                      id="exp-dl-val"
+                      class="expiry-input"
+                      min="1"
+                      max="99"
+                      value="1" />
+                    <span>descarga(s)</span>
+                  </label>
+                </fieldset>
+              </div>
+            </div>
+
+            <section
+              id="file-list-section"
+              class="file-list-section hidden"
+              aria-labelledby="files-title">
+              <h2 id="files-title" class="section-title">Archivos</h2>
+              <ul id="file-list" class="file-list"></ul>
+            </section>
+          </section>
+
+          <aside class="clients-panel" aria-labelledby="clients-title">
+            <h2 id="clients-title" class="section-title">Conexiones</h2>
+              <ul id="clients-list" class="clients-list">
+                <li class="client-empty">Esperando...</li>
+              </ul>
+              <figure id="room-qr-card" class="qr-card qr-card--sidebar">
+                <img id="room-qr" class="room-qr" alt="QR para entrar a la sala" />
+                <figcaption>Escanea este QR desde el otro dispositivo.</figcaption>
+              </figure>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="app/main.js?v=1775947623"></script>
+  </body>
 </html>

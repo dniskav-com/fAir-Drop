@@ -1,34 +1,42 @@
-import type { IncomingFile, PeerInfo, SignalMessage, TransferMessage } from '../shared/domain/types.js';
+import type {
+  IncomingFile,
+  PeerInfo,
+  SignalMessage,
+  TransferMessage
+} from '../shared/domain/types.js'
 
 export interface ExpiryRuntime {
-  timer?: number;
-  downloadsLeft?: number;
+  timer?: number
+  downloadsLeft?: number
+  remaining?: number
 }
 
 export interface AppState {
-  ws: WebSocket | null;
-  pc: RTCPeerConnection | null;
-  dc: RTCDataChannel | null;
-  isCreator: boolean;
-  remoteDescSet: boolean;
-  pendingCandidates: RTCIceCandidateInit[];
-  useRelay: boolean;
-  relayRequested: boolean;
-  connectTimer: number | null;
-  disconnectTimer: number | null;
-  selfInfo: PeerInfo | null;
-  peerInfo: PeerInfo | null;
-  clientsTimer: number | null;
-  fileUrls: Map<string, string>;
-  fileExpiry: Map<string, ExpiryRuntime>;
-  incoming: Map<string, IncomingFile>;
+  ws: WebSocket | null
+  pc: RTCPeerConnection | null
+  dc: RTCDataChannel | null
+  isCreator: boolean
+  remoteDescSet: boolean
+  pendingCandidates: RTCIceCandidateInit[]
+  useRelay: boolean
+  relayRequested: boolean
+  connectTimer: number | null
+  disconnectTimer: number | null
+  selfInfo: PeerInfo | null
+  peerInfo: PeerInfo | null
+  clientsTimer: number | null
+  fileUrls: Map<string, string>
+  fileMeta: Map<string, { name: string; size?: number }>
+  fileExpiry: Map<string, ExpiryRuntime>
+  incoming: Map<string, IncomingFile>
+  uiReact: boolean
 }
 
 export interface AppPorts {
-  onSignal(msg: SignalMessage): void | Promise<void>;
-  onRelayMeta(msg: TransferMessage): void;
-  onBinaryChunk(buffer: ArrayBuffer): void;
-  showHomeError(message: string): void;
+  onSignal(msg: SignalMessage): void | Promise<void>
+  onRelayMeta(msg: TransferMessage): void
+  onBinaryChunk(buffer: ArrayBuffer): void
+  showHomeError(message: string): void
 }
 
 export function createAppState(): AppState {
@@ -47,7 +55,9 @@ export function createAppState(): AppState {
     peerInfo: null,
     clientsTimer: null,
     fileUrls: new Map(),
+    uiReact: false,
+    fileMeta: new Map(),
     fileExpiry: new Map(),
-    incoming: new Map(),
-  };
+    incoming: new Map()
+  }
 }

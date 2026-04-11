@@ -10,13 +10,13 @@ La app crea una sala con un codigo corto. Otro dispositivo entra con ese codigo 
 - Transferencia P2P via WebRTC DataChannel.
 - Fallback relay por WebSocket cuando WebRTC no conecta.
 - Drag and drop y selector de archivos.
+- Soporte movil: camara, galeria y selector de archivos desde Android e iOS.
 - Progreso por archivo.
 - Expiracion opcional por tiempo.
 - Limite opcional de descargas.
 - Panel de conexiones con informacion basica del peer.
-- QR local para compartir una sala recien creada.
+- QR local para compartir la sala (solo visible para el anfitrion).
 - Lector de QR con camara usando `BarcodeDetector` cuando el navegador lo soporta.
-- Deteccion simple de dispositivo movil para adaptar el flujo de escaneo.
 - Expulsion y baneo temporal o permanente del invitado.
 - Pagina de estado en `/status`.
 
@@ -26,7 +26,7 @@ La app crea una sala con un codigo corto. Otro dispositivo entra con ese codigo 
 - Express
 - ws
 - qrcode
-- TypeScript
+- TypeScript (cliente)
 - HTML, CSS y JavaScript vanilla
 - WebRTC en el navegador
 
@@ -38,13 +38,13 @@ Instala dependencias:
 npm install
 ```
 
-Arranca el servidor:
+Arranca el servidor (compila y sirve):
 
 ```bash
 npm start
 ```
 
-Compila el cliente TypeScript:
+Solo compilar cliente TypeScript:
 
 ```bash
 npm run build
@@ -114,5 +114,5 @@ La paleta visual se inspira en los colores de sistema actuales de Apple: `system
 - Los bans viven en memoria; se pierden al reiniciar el servidor.
 - Las salas viven en memoria; no hay persistencia.
 - Para WebRTC fuera de una red simple puede hacer falta TURN. Este proyecto solo configura STUN publico de Google.
-- El lector de QR depende de `BarcodeDetector` y de un contexto seguro (`HTTPS` o `localhost`); si entras desde `http://IP_LOCAL:3000`, usa la app Camara del movil para abrir el QR o entra con codigo/link.
-- Si el P2P tarda demasiado o queda en `disconnected`, el cliente cambia a relay tras un timeout corto.
+- El lector de QR y `BarcodeDetector` requieren contexto seguro (`HTTPS` o `localhost`). Desde `http://IP_LOCAL:3000` usa la app Camara del movil para escanear el QR o entra con codigo/link.
+- En produccion la app debe servirse desde HTTPS para aprovechar todas las APIs del navegador. En desarrollo local, `crypto.randomUUID()` no esta disponible en HTTP, pero la app tiene fallback automatico.

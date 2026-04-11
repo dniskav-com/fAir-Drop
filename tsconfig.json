@@ -3,6 +3,8 @@
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "rootDir": "src/client",
     "outDir": "public/app",
@@ -13,5 +15,5 @@
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src/client/**/*.ts"]
+  "include": ["src/client/**/*.ts", "src/client/**/*.tsx"]
 }
