@@ -16,7 +16,7 @@ export default defineConfig({
     // Allow binding to the local network so other devices can reach the dev server
     // `true` tells Vite to listen on all addresses (0.0.0.0)
     host: true,
-    port: 3000,
+    port: 3002,
     proxy: {
       // API REST → Express en :3001
       '/api': {
