@@ -18,6 +18,8 @@ La app crea una sala con un codigo corto. Otro dispositivo entra con ese codigo 
 - QR local para compartir la sala (solo visible para el anfitrion).
 - Lector de QR con camara usando `BarcodeDetector` cuando el navegador lo soporta.
 - Expulsion y baneo temporal o permanente del invitado.
+- Modo oscuro (por defecto) con toggle sol/luna. Persiste en `localStorage`.
+- Internacionalizacion: español, ingles, frances y aleman. Detecta el idioma del navegador automaticamente. Persiste en `localStorage`.
 - Pagina de estado en `/status`.
 
 ## Stack
@@ -27,7 +29,8 @@ La app crea una sala con un codigo corto. Otro dispositivo entra con ese codigo 
 - ws
 - qrcode
 - TypeScript (cliente)
-- HTML, CSS y JavaScript vanilla
+- React 18
+- Vite
 - WebRTC en el navegador
 
 ## Ejecutar
@@ -38,40 +41,34 @@ Instala dependencias:
 npm install
 ```
 
-Arranca el servidor (compila y sirve):
+Desarrollo local (UI en :3002, backend en :3003):
 
 ```bash
-npm start
+bun run dev
 ```
 
-Solo compilar cliente TypeScript:
+Compilar para produccion:
 
 ```bash
-npm run build
+bun run build
 ```
 
-Servidor sin recompilar:
+Produccion (sirve `dist/` en :3002):
 
 ```bash
-npm run serve
-```
-
-Watch de TypeScript:
-
-```bash
-npm run dev
+bun start
 ```
 
 Abre:
 
 ```text
-http://localhost:3000
+http://localhost:3002
 ```
 
 Estado del servidor:
 
 ```text
-http://localhost:3000/status
+http://localhost:3002/status
 ```
 
 ## Uso en red local
@@ -91,13 +88,17 @@ ipconfig getifaddr en0
 
 ```text
 server.js                         Servidor Express, WebSocket signaling, salas, relay, QR y status.
-src/client/main.ts                Entrada del cliente TypeScript.
-src/client/app                    Estado de aplicacion y composicion.
-src/client/features               Vertical slices: connection, rooms, transfer, qr, peers y dropzone.
-src/client/shared                 Tipos, adaptadores DOM y utilidades compartidas.
-public/index.html                 Interfaz principal.
-public/style.css                  Tema visual moderno inspirado en AirDrop/macOS.
-public/app                        Salida compilada de TypeScript servida al navegador; se regenera con `npm run build`.
+index.html                        Entry point de Vite.
+src/client/main.ts                Monta App.tsx sobre #root.
+src/client/App.tsx                Componente raiz: enruta entre Home y Room, provee tema e i18n.
+src/client/components/            Home, Room, FileList, PeersPanel, ThemeToggle, LanguageSelector, BrandMark, RoomCodeInput.
+src/client/hooks/                 useTheme (dark mode), useLocale.
+src/client/i18n/                  Sistema i18n: LocaleContext, useTranslation, locales (es/en/fr/de).
+src/client/app/                   AppState y tipos de UI.
+src/client/features/              Vertical slices: connection, rooms, transfer, qr.
+src/client/shared/                Tipos de dominio y utilidades compartidas.
+src/core/store.ts                 FairDropStore — estado reactivo global.
+public/style.css                  Sistema visual con dark mode via tokens CSS.
 ```
 
 ## Notas de diseno

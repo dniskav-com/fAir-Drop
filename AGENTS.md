@@ -19,11 +19,11 @@ fAir Drop es una app local-first para compartir archivos entre dos dispositivos 
 ## Comandos
 
 ```bash
-npm install
-npm run dev        # Vite dev server :3000 + Express :3001 en paralelo
-npm run build      # vite build → dist/
-npm start          # NODE_ENV=production node server.js (sirve dist/)
-npm run typecheck  # tsc --noEmit (solo chequeo de tipos)
+bun install
+bun run dev        # Vite UI :3002 + Express/WS :3003 en paralelo
+bun run build      # vite build → dist/
+bun start          # NODE_ENV=production node server.js (sirve dist/ en :3002)
+bun run typecheck  # tsc --noEmit (solo chequeo de tipos)
 node --check server.js
 ```
 
@@ -44,9 +44,14 @@ La estructura TypeScript sigue una version ligera de arquitectura hexagonal con 
 ```text
 src/core/store.ts                      FairDropStore — estado global reactivo (unica instancia en App.tsx)
 src/client/main.ts                     entry point: monta App.tsx sobre #root
-src/client/App.tsx                     componente raiz, enruta entre Home y Room
+src/client/App.tsx                     componente raiz, provee LocaleProvider, enruta entre Home y Room
 src/client/adapters/react/             useFairDrop hook (useSyncExternalStore)
-src/client/components/                 Home, Room, FileList, PeersPanel, BrandMark, RoomCodeInput
+src/client/components/                 Home, Room, FileList, PeersPanel, BrandMark, RoomCodeInput,
+                                       ThemeToggle, LanguageSelector
+src/client/hooks/useTheme.ts           dark mode con localStorage (clave: fairdrop-theme)
+src/client/i18n/index.ts              LocaleProvider + useTranslation hook (React Context)
+src/client/i18n/types.ts              interfaz Translations tipada
+src/client/i18n/locales/              es.ts, en.ts, fr.ts, de.ts
 src/client/app/                        AppState, createAppState, AppPorts
 src/client/shared/domain/             tipos del dominio (SignalMessage, ExpiryConfig…)
 src/client/shared/application/        utilidades sin DOM (format, etc.)
@@ -103,11 +108,17 @@ src/client/features/qr/               qr-scanner (BarcodeDetector)
 
 ## Estilo visual
 
-La UI debe sentirse cercana a macOS/AirDrop: clara, precisa, con vidrio sutil, radar central y controles compactos. Mantener radios pequenos, buena legibilidad y layout estable en movil.
+La UI debe sentirse cercana a macOS/AirDrop: oscura por defecto, precisa, con vidrio sutil, radar central y controles compactos. Mantener radios pequenos, buena legibilidad y layout estable en movil.
 
 Usar como base los colores de sistema de Apple: `#007AFF`, `#34C759`, `#FF3B30`, `#FF9500`, grises de label (`#1C1C1E`, `#3A3A3C`, `#8E8E93`) y fondo agrupado claro (`#F2F2F7`).
 
+El dark mode se controla con la clase `dark` en `<html>`. Los tokens CSS estan en `@layer tokens` dentro de `public/style.css`. Todos los colores deben usar variables (`--ink`, `--panel-solid`, etc.) — nunca `white` o `rgb(255 255 255 / ...)` hardcodeados.
+
 No convertir la pantalla inicial en una landing de marketing; la primera pantalla debe seguir siendo util: crear sala o unirse.
+
+## i18n
+
+El sistema de traducciones es ligero y sin dependencias externas. Funciona con React Context (`LocaleContext`) y el hook `useTranslation()`. Los idiomas soportados son `es`, `en`, `fr`, `de`. La deteccion automatica usa `navigator.language`; la preferencia persiste en `localStorage` con la clave `fairdrop-locale`. Para añadir un idioma: crear `src/client/i18n/locales/xx.ts` implementando la interfaz `Translations`, e importarlo en `src/client/i18n/index.ts`.
 
 ## Estado actual
 
