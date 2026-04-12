@@ -368,7 +368,7 @@ wss.on('connection', (ws, req) => {
   })
 })
 
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 3002
 server.listen(PORT, () => {
   console.log(`fAir Drop corriendo en http://localhost:${PORT}`)
   console.log(`Status en         http://localhost:${PORT}/status`)
