@@ -1,14 +1,12 @@
-import type { AppState } from '../../../app/state.js'
+import type { AppState } from '@client/app/state'
 
 export function showRoom(
   state: AppState,
   code: string,
   isCreator: boolean,
-  notify: () => void
+  notify: () => void,
 ): void {
-  const shareUrl = isCreator
-    ? `${location.origin}${location.pathname}?room=${code}`
-    : null
+  const shareUrl = isCreator ? `${location.origin}${location.pathname}?room=${code}` : null
 
   state.screen = 'room'
   state.roomCode = code
@@ -21,7 +19,7 @@ export function showRoom(
 export function resetToHome(
   state: AppState,
   message: string | undefined,
-  notify: () => void
+  notify: () => void,
 ): void {
   state.pc?.close()
   state.ws?.close()

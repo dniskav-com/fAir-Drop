@@ -4,7 +4,7 @@ import type {
   ConnectionStatus,
   ExpiryConfig,
   SignalMessage,
-  TransferMessage
+  TransferMessage,
 } from '../shared/domain/types.js'
 import { connectWs, wsSend } from '../features/connection/application/signaling.js'
 import {
@@ -12,7 +12,7 @@ import {
   applyRemoteAnswer,
   acceptOffer,
   addIceCandidate,
-  switchToRelay
+  switchToRelay,
 } from '../features/connection/application/webrtc.js'
 import type { WebRtcPorts } from '../features/connection/application/webrtc.js'
 import {
@@ -21,7 +21,7 @@ import {
   handleChunk,
   deleteFile as deleteFileImpl,
   cleanupFiles,
-  recordDownload as recordDownloadImpl
+  recordDownload as recordDownloadImpl,
 } from '../features/transfer/application/transfer.js'
 import { showRoom, resetToHome } from '../features/rooms/application/rooms.js'
 
@@ -65,7 +65,7 @@ export class FairDropStore {
       },
       handleChunk: (buffer: ArrayBuffer) => {
         handleChunk(this._state, buffer, this.notify)
-      }
+      },
     }
   }
 
@@ -85,7 +85,7 @@ export class FairDropStore {
           this._state.homeError = null
           this.notify()
         }, 5000)
-      }
+      },
     }
   }
 

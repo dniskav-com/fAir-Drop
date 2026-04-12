@@ -10,7 +10,7 @@ function ClientCard({
   role,
   isSelf,
   canControl,
-  actions
+  actions,
 }: {
   info: PeerInfo
   role: Role
@@ -51,7 +51,8 @@ function ClientCard({
             <button
               className="btn-ban"
               onClick={() => actions.banPeer(null)}
-              data-ban-peer="permanent">
+              data-ban-peer="permanent"
+            >
               Ban permanente
             </button>
           </div>
@@ -60,7 +61,8 @@ function ClientCard({
             <button
               className="btn-ban"
               onClick={() => actions.banPeer(banDur)}
-              data-ban-peer="temporary">
+              data-ban-peer="temporary"
+            >
               Ban temporal
             </button>
             <input

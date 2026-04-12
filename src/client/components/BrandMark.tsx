@@ -11,7 +11,7 @@ export default function BrandMark({
   onClick,
   pressed = false,
   id = 'brand-mark',
-  className = ''
+  className = '',
 }: BrandMarkProps) {
   return (
     <span
@@ -26,7 +26,8 @@ export default function BrandMark({
           e.preventDefault()
           onClick?.(e as unknown as React.MouseEvent<HTMLSpanElement>)
         }
-      }}>
+      }}
+    >
       <span className="radar-ring"></span>
       <span className="radar-ring"></span>
       <span className="radar-ring"></span>

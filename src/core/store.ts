@@ -15,7 +15,7 @@ import type {
   ConnectionStatus,
   ExpiryConfig,
   SignalMessage,
-  TransferMessage
+  TransferMessage,
 } from '../client/shared/domain/types.js'
 import { connectWs, wsSend } from '../client/features/connection/application/signaling.js'
 import {
@@ -25,7 +25,7 @@ import {
   sendMeta,
   startPeerConnection,
   switchToRelay,
-  type WebRtcPorts
+  type WebRtcPorts,
 } from '../client/features/connection/application/webrtc.js'
 import {
   cleanupFiles,
@@ -33,7 +33,7 @@ import {
   handleChunk,
   handleMetaMessage,
   recordDownload,
-  sendFiles
+  sendFiles,
 } from '../client/features/transfer/application/transfer.js'
 import { showRoom, resetToHome } from '../client/features/rooms/application/rooms.js'
 
@@ -111,7 +111,7 @@ export class FairDropStore {
       onSignal: (msg) => this.handleSignal(msg),
       onRelayMeta: (msg) => handleMetaMessage(this._state, msg, this.notify),
       onBinaryChunk: (buf) => handleChunk(this._state, buf, this.notify),
-      showHomeError: (msg) => this.showHomeError(msg)
+      showHomeError: (msg) => this.showHomeError(msg),
     })
     ws.onopen = () => wsSend(this._state, { type: 'create-room' })
   }
@@ -126,7 +126,7 @@ export class FairDropStore {
       onSignal: (msg) => this.handleSignal(msg),
       onRelayMeta: (msg) => handleMetaMessage(this._state, msg, this.notify),
       onBinaryChunk: (buf) => handleChunk(this._state, buf, this.notify),
-      showHomeError: (msg) => this.showHomeError(msg)
+      showHomeError: (msg) => this.showHomeError(msg),
     })
     ws.onopen = () => wsSend(this._state, { type: 'join-room', code })
   }
@@ -175,7 +175,7 @@ export class FairDropStore {
     return {
       setStatus: (s) => this.setStatus(s),
       handleMetaMessage: (msg) => handleMetaMessage(this._state, msg, this.notify),
-      handleChunk: (buf) => handleChunk(this._state, buf, this.notify)
+      handleChunk: (buf) => handleChunk(this._state, buf, this.notify),
     }
   }
 

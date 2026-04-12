@@ -17,7 +17,7 @@ const statusLabels: Record<string, string> = {
   waiting: 'Esperando...',
   connected: 'Conectado (P2P)',
   relay: 'Conectado (via servidor)',
-  disconnected: 'Desconectado'
+  disconnected: 'Desconectado',
 }
 
 export default function Room({ state, actions }: { state: AppState; actions: RoomActions }) {
@@ -25,7 +25,7 @@ export default function Room({ state, actions }: { state: AppState; actions: Roo
     timeEnabled: false,
     time: 30,
     dlEnabled: false,
-    dl: 1
+    dl: 1,
   })
   const [isDragOver, setIsDragOver] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
@@ -74,7 +74,7 @@ export default function Room({ state, actions }: { state: AppState; actions: Roo
         await navigator.share({
           title: 'fAir Drop',
           text: 'Entra a mi sala de fAir Drop',
-          url: state.shareUrl
+          url: state.shareUrl,
         })
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return
@@ -107,7 +107,8 @@ export default function Room({ state, actions }: { state: AppState; actions: Roo
               } else {
                 setShowExitModal(true)
               }
-            }}>
+            }}
+          >
             Salir
           </button>
         </div>
@@ -136,7 +137,8 @@ export default function Room({ state, actions }: { state: AppState; actions: Roo
                 onClick={() => {
                   setShowExitModal(false)
                   actions.leaveRoom()
-                }}>
+                }}
+              >
                 Salir
               </button>
             </div>
@@ -187,7 +189,8 @@ export default function Room({ state, actions }: { state: AppState; actions: Roo
               if (!isConnected) return
               if ((e.target as HTMLElement).closest('.expiry-bar')) return
               fileInputRef.current?.click()
-            }}>
+            }}
+          >
             {!isConnected ? (
               <div className="drop-content">
                 <span className="drop-icon" aria-hidden="true">
@@ -209,7 +212,8 @@ export default function Room({ state, actions }: { state: AppState; actions: Roo
                   onClick={(e) => {
                     e.stopPropagation()
                     fileInputRef.current?.click()
-                  }}>
+                  }}
+                >
                   Seleccionar archivos
                 </button>
                 <input
@@ -274,7 +278,7 @@ export default function Room({ state, actions }: { state: AppState; actions: Roo
                 state={state}
                 actions={{
                   deleteFile: actions.deleteFile,
-                  downloadFile: actions.downloadFile
+                  downloadFile: actions.downloadFile,
                 }}
               />
             </section>

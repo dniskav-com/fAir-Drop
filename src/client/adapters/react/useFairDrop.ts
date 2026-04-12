@@ -20,16 +20,13 @@
  */
 
 import { useSyncExternalStore } from 'react'
-import type { FairDropStore, AppState } from '../../../core/store.js'
+import type { FairDropStore, AppState } from '@core/store'
 
 export function useFairDrop(store: FairDropStore): {
   state: Readonly<AppState>
   store: FairDropStore
 } {
-  const state = useSyncExternalStore(
-    store.subscribe,
-    store.getState
-  )
+  const state = useSyncExternalStore(store.subscribe, store.getState)
 
   return { state, store }
 }

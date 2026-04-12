@@ -1,15 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tsconfigPaths()],
 
   // Los archivos de public/ (style.css) se sirven como assets estáticos
   publicDir: 'public',
 
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
   },
 
   server: {
@@ -21,18 +22,18 @@ export default defineConfig({
       // API REST → Express en :3001
       '/api': {
         target: 'http://localhost:3001',
-        changeOrigin: true
+        changeOrigin: true,
       },
       // Página de status → Express en :3001
       '/status': {
         target: 'http://localhost:3001',
-        changeOrigin: true
+        changeOrigin: true,
       },
       // WebSocket de signaling → Express en :3001
       '/ws': {
         target: 'ws://localhost:3001',
-        ws: true
-      }
-    }
-  }
+        ws: true,
+      },
+    },
+  },
 })

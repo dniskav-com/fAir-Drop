@@ -1,10 +1,6 @@
-import type { AppState, ExpiryRuntime } from '../../../app/state.js'
-import type {
-  ExpiryConfig,
-  FileStartMessage,
-  TransferMessage
-} from '../../../shared/domain/types.js'
-import { relaySend, sendMeta } from '../../connection/application/webrtc.js'
+import type { AppState, ExpiryRuntime } from '@client/app/state'
+import type { ExpiryConfig, FileStartMessage, TransferMessage } from '@shared/domain/types'
+import { relaySend, sendMeta } from '@features/connection/application/webrtc'
 
 const CHUNK_SIZE = 16 * 1024
 
@@ -26,7 +22,7 @@ export async function sendFiles(
   files: File[],
   expiry: ExpiryConfig | null,
   notify: () => void,
-  onError?: (msg: string) => void
+  onError?: (msg: string) => void,
 ): Promise<void> {
   for (const file of files) {
     try {
@@ -46,7 +42,7 @@ async function sendFile(
   state: AppState,
   file: File,
   expiry: ExpiryConfig | null,
-  notify: () => void
+  notify: () => void,
 ): Promise<void> {
   const fileId = generateId()
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
@@ -57,7 +53,7 @@ async function sendFile(
     size: file.size,
     mimeType: file.type || 'application/octet-stream',
     totalChunks,
-    ...(expiry ? { expiry } : {})
+    ...(expiry ? { expiry } : {}),
   }
 
   state.incoming.set(fileId, { meta, chunks: [], received: 0, direction: 'sending' })
@@ -169,7 +165,7 @@ export function deleteFile(
   state: AppState,
   fileId: string,
   notifyPeer: boolean,
-  notify: () => void
+  notify: () => void,
 ): void {
   const url = state.fileUrls.get(fileId)
   if (url) URL.revokeObjectURL(url)
@@ -237,7 +233,7 @@ export function fileIconType(name: string): string {
     txt: 'txt',
     md: 'md',
     dmg: 'app',
-    exe: 'app'
+    exe: 'app',
   }
   return ext ? (icons[ext] ?? 'file') : 'file'
 }
@@ -259,7 +255,7 @@ function startExpiryTimer(
   state: AppState,
   fileId: string,
   seconds: number,
-  notify: () => void
+  notify: () => void,
 ): void {
   let remaining = seconds
   const runtime: ExpiryRuntime = { remaining, ...state.fileExpiry.get(fileId) }
@@ -282,6 +278,6 @@ function startExpiryTimer(
 function startDownloadLimit(state: AppState, fileId: string, maxDownloads: number): void {
   state.fileExpiry.set(fileId, {
     ...state.fileExpiry.get(fileId),
-    downloadsLeft: maxDownloads
+    downloadsLeft: maxDownloads,
   })
 }

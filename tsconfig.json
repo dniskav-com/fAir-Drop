@@ -12,6 +12,14 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true,
+    "baseUrl": ".",
+    "paths": {
+      "@client/*": ["src/client/*"],
+      "@components/*": ["src/client/components/*"],
+      "@features/*": ["src/client/features/*"],
+      "@shared/*": ["src/client/shared/*"],
+      "@core/*": ["src/core/*"]
+    },
     "noEmit": true
   },
   "include": ["src/client/**/*.ts", "src/client/**/*.tsx", "vite.config.ts"]

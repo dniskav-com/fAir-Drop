@@ -48,7 +48,7 @@ export default function App() {
           downloadFile: (id: string) => store.recordDownload(id),
           kickPeer: () => store.kickPeer(),
           banPeer: (duration: number | null) => store.banPeer(duration),
-          leaveRoom: () => store.leaveRoom()
+          leaveRoom: () => store.leaveRoom(),
         }}
       />
     )
@@ -59,7 +59,7 @@ export default function App() {
       state={state}
       actions={{
         createRoom: () => store.createRoom(),
-        joinRoom: (code: string) => store.joinRoom(code)
+        joinRoom: (code: string) => store.joinRoom(code),
       }}
     />
   )

@@ -1,6 +1,6 @@
-import type { AppState } from '../../../app/state.js'
-import type { ConnectionStatus, TransferMessage } from '../../../shared/domain/types.js'
-import { wsSend } from './signaling.js'
+import type { AppState } from '@client/app/state'
+import type { ConnectionStatus, TransferMessage } from '@shared/domain/types'
+import { wsSend } from '@features/connection/application/signaling'
 
 const CONNECT_TIMEOUT_MS = 9000
 const DISCONNECT_GRACE_MS = 3500
@@ -23,7 +23,7 @@ export interface WebRtcPorts {
 export async function startPeerConnection(
   state: AppState,
   ports: WebRtcPorts,
-  asInitiator: boolean
+  asInitiator: boolean,
 ): Promise<void> {
   clearConnectionTimers(state)
   state.remoteDescSet = false
@@ -86,7 +86,7 @@ export async function startPeerConnection(
 
 export async function applyRemoteAnswer(
   state: AppState,
-  sdp: RTCSessionDescriptionInit
+  sdp: RTCSessionDescriptionInit,
 ): Promise<void> {
   if (!state.pc) return
   await state.pc.setRemoteDescription(new RTCSessionDescription(sdp))
@@ -97,7 +97,7 @@ export async function applyRemoteAnswer(
 export async function acceptOffer(
   state: AppState,
   ports: WebRtcPorts,
-  sdp: RTCSessionDescriptionInit
+  sdp: RTCSessionDescriptionInit,
 ): Promise<void> {
   await startPeerConnection(state, ports, false)
   if (!state.pc) return
@@ -111,7 +111,7 @@ export async function acceptOffer(
 
 export async function addIceCandidate(
   state: AppState,
-  candidate: RTCIceCandidateInit
+  candidate: RTCIceCandidateInit,
 ): Promise<void> {
   if (state.pc && state.remoteDescSet) {
     try {
@@ -155,11 +155,7 @@ export function sendMeta(state: AppState, data: TransferMessage): void {
 
 // ── Internos ─────────────────────────────────────────────────────────────────
 
-function setupDataChannel(
-  state: AppState,
-  ports: WebRtcPorts,
-  channel: RTCDataChannel
-): void {
+function setupDataChannel(state: AppState, ports: WebRtcPorts, channel: RTCDataChannel): void {
   state.dc = channel
   channel.binaryType = 'arraybuffer'
   channel.onopen = () => {

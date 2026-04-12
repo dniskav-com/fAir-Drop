@@ -31,7 +31,7 @@ export default function Home({ state, actions }: { state: AppState; actions: Hom
       {
         qrScanner: dialogRef.current,
         qrVideo: videoRef.current,
-        scannerStatus: statusRef.current
+        scannerStatus: statusRef.current,
       },
       (msg) => {
         // homeError llega a través del store; no tenemos acceso directo aquí,
@@ -41,7 +41,7 @@ export default function Home({ state, actions }: { state: AppState; actions: Hom
       (detectedCode) => {
         setCode(detectedCode)
         actions.joinRoom(detectedCode)
-      }
+      },
     )
   }
 
@@ -82,7 +82,8 @@ export default function Home({ state, actions }: { state: AppState; actions: Hom
         ref={dialogRef}
         className="scanner-dialog"
         aria-labelledby="scanner-title"
-        onClose={onCloseScanner}>
+        onClose={onCloseScanner}
+      >
         <div className="scanner-card">
           <div className="scanner-header">
             <h2 id="scanner-title">Escanear sala</h2>

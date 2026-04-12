@@ -74,6 +74,6 @@ export function getDomRefs(): DomRefs {
     expTimeOn: byId<HTMLInputElement>('exp-time-on'),
     expTimeVal: byId<HTMLInputElement>('exp-time-val'),
     expDlOn: byId<HTMLInputElement>('exp-dl-on'),
-    expDlVal: byId<HTMLInputElement>('exp-dl-val')
+    expDlVal: byId<HTMLInputElement>('exp-dl-val'),
   }
 }

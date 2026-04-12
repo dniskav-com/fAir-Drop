@@ -4,7 +4,7 @@ import { formatBytes } from '../shared/application/format'
 
 export default function FileList({
   state,
-  actions
+  actions,
 }: {
   state: AppState
   actions: { deleteFile(fileId: string): void; downloadFile(fileId: string): void }
@@ -27,7 +27,7 @@ export default function FileList({
       direction: direction as 'sending' | 'receiving',
       progress,
       expiry: state.fileExpiry.get(meta.fileId)?.remaining,
-      downloadsLeft: state.fileExpiry.get(meta.fileId)?.downloadsLeft
+      downloadsLeft: state.fileExpiry.get(meta.fileId)?.downloadsLeft,
     }
   })
 
@@ -78,7 +78,8 @@ export default function FileList({
             <span
               className={
                 'badge ' + (it.direction === 'sending' ? 'badge-sending' : 'badge-receiving')
-              }>
+              }
+            >
               {it.direction === 'sending' ? 'enviando' : 'recibiendo'}
             </span>
             {typeof it.expiry === 'number' ? (
@@ -90,7 +91,8 @@ export default function FileList({
             <button
               className="btn-delete"
               onClick={() => actions.deleteFile(it.id)}
-              data-delete-file={it.id}>
+              data-delete-file={it.id}
+            >
               Eliminar
             </button>
           </div>
@@ -110,7 +112,8 @@ export default function FileList({
                 className="btn-download"
                 onClick={() => actions.downloadFile(c.id)}
                 href={c.url}
-                download={c.name}>
+                download={c.name}
+              >
                 Descargar
               </a>
             ) : (
@@ -125,7 +128,8 @@ export default function FileList({
             <button
               className="btn-delete"
               onClick={() => actions.deleteFile(c.id)}
-              data-delete-file={c.id}>
+              data-delete-file={c.id}
+            >
               Eliminar
             </button>
           </div>
