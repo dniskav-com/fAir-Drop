@@ -14,6 +14,7 @@ type RoomActions = {
   kickPeer(): void
   banPeer(duration: number | null): void
   leaveRoom(): void
+  retryP2P(): void
 }
 
 export default function Room({
@@ -168,6 +169,13 @@ export default function Room({
       {state.connectionStatus === 'relay' ? (
         <div className="relay-warning" role="status" aria-live="polite">
           <strong>⚠️</strong> {t.room.relayWarning} (vía servidor)
+          <button
+            className="btn btn-secondary btn-small"
+            type="button"
+            onClick={() => actions.retryP2P()}
+          >
+            {t.room.retryP2p}
+          </button>
         </div>
       ) : null}
 

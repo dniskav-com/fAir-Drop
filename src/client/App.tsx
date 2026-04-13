@@ -51,6 +51,7 @@ function AppInner() {
           kickPeer: () => store.kickPeer(),
           banPeer: (duration: number | null) => store.banPeer(duration),
           leaveRoom: () => store.leaveRoom(),
+          retryP2P: () => store.retryP2P(),
         }}
       />
     )

@@ -46,6 +46,7 @@ export type SignalMessage =
   | { type: 'peer-info'; peer: PeerInfo | null }
   | { type: 'relay-meta'; payload: TransferMessage }
   | { type: 'relay-mode' }
+  | { type: 'retry-p2p' }
   | { type: 'peer-disconnected' }
   | { type: 'kicked'; reason?: string }
   | { type: 'banned'; reason?: string }

@@ -119,6 +119,19 @@ export class FairDropStore {
     recordDownloadImpl(this._state, fileId, this.notify)
   }
 
+  retryP2P(): void {
+    const state = this._state
+    state.useRelay = false
+    state.relayRequested = false
+    state.connectionType = 'unknown'
+    state.pc?.close()
+    state.pc = null
+    state.dc = null
+    this._state.connectionStatus = 'waiting'
+    wsSend(state, { type: 'retry-p2p' })
+    startPeerConnection(state, this.rtcPorts, true)
+  }
+
   kickPeer(): void {
     wsSend(this._state, { type: 'kick-peer' })
   }
@@ -168,6 +181,17 @@ export class FairDropStore {
       case 'relay-mode':
         this._state.useRelay = true
         this._state.connectionStatus = 'relay'
+        this.notify()
+        break
+
+      case 'retry-p2p':
+        this._state.useRelay = false
+        this._state.relayRequested = false
+        this._state.connectionType = 'unknown'
+        this._state.pc?.close()
+        this._state.pc = null
+        this._state.dc = null
+        this._state.connectionStatus = 'waiting'
         this.notify()
         break
 

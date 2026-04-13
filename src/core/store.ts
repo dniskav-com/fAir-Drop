@@ -174,6 +174,26 @@ export class FairDropStore {
     recordDownload(this._state, fileId, this.notify)
   }
 
+  /**
+   * Reintentar conexión P2P desde modo relay.
+   * Cierra la conexión actual y solicita una nueva negociación WebRTC.
+   */
+  retryP2P(): void {
+    const state = this._state
+    // Resetear estado de relay para forzar nuevo intento P2P
+    state.useRelay = false
+    state.relayRequested = false
+    state.connectionType = 'unknown'
+    state.pc?.close()
+    state.pc = null
+    state.dc = null
+    this.setStatus('waiting')
+    // Notificar al peer que también reintente
+    wsSend(state, { type: 'retry-p2p' })
+    // Iniciar nueva conexión peer
+    startPeerConnection(state, this.rtcPorts, state.isCreator)
+  }
+
   // ── Señalización interna ────────────────────────────────────────────────────
 
   private get rtcPorts(): WebRtcPorts {
@@ -227,6 +247,21 @@ export class FairDropStore {
 
       case 'relay-mode':
         switchToRelay(state, this.rtcPorts)
+        break
+
+      case 'retry-p2p':
+        // El otro peer quiere reintentar P2P, resetear y esperar la oferta
+        state.useRelay = false
+        state.relayRequested = false
+        state.connectionType = 'unknown'
+        state.pc?.close()
+        state.pc = null
+        state.dc = null
+        this.setStatus('waiting')
+        // El creator iniciará la nueva oferta
+        if (state.isCreator) {
+          startPeerConnection(state, this.rtcPorts, true)
+        }
         break
 
       case 'peer-disconnected':

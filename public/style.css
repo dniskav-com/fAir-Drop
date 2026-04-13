@@ -430,6 +430,13 @@
     min-block-size: 28px;
   }
 
+  .btn-small {
+    padding: 2px 8px;
+    height: 24px;
+    min-block-size: 24px;
+    font-size: 12px;
+  }
+
   .btn:active,
   .btn-icon:active,
   .btn-download:active,
@@ -617,6 +624,10 @@
     color: var(--ink);
     font-weight: 700;
     font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
   /* Confirm modal for desktop */

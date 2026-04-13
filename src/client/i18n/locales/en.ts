@@ -32,6 +32,7 @@ const en: Translations = {
     },
     relayWarning:
       'P2P connection failed; files are being sent through the server (relay).',
+    retryP2p: 'Retry P2P',
     shareLabel: 'Share this link with the other device:',
     copyLink: 'Copy link',
     share: 'Share',

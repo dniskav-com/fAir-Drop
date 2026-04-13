@@ -32,6 +32,7 @@ const de: Translations = {
     },
     relayWarning:
       'P2P-Verbindung fehlgeschlagen; Dateien werden über den Server übertragen (Relay).',
+    retryP2p: 'P2P erneut versuchen',
     shareLabel: 'Teile diesen Link mit dem anderen Gerät:',
     copyLink: 'Link kopieren',
     share: 'Teilen',

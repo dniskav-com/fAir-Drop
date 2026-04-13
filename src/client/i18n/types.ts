@@ -29,6 +29,7 @@ export interface Translations {
       disconnected: string
     }
     relayWarning: string
+    retryP2p: string
     shareLabel: string
     copyLink: string
     share: string
