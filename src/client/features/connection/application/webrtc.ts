@@ -5,30 +5,10 @@ import { wsSend } from '@features/connection/application/signaling'
 const CONNECT_TIMEOUT_MS = 20000
 const DISCONNECT_GRACE_MS = 3500
 
-// Orden: STUN primero (descubrimiento rápido de IPs), luego TURN (fallback para NAT restrictivo)
+// Solo STUN — WebRTC negocia P2P directo. TURN se agrega solo si la conexión directa falla.
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  {
-    urls: 'turn:global.relay.metered.ca:80',
-    username: '433c43500cb12d33538bcb17',
-    credential: 'XZioDDDZqa/4mkDj',
-  },
-  {
-    urls: 'turn:global.relay.metered.ca:80?transport=tcp',
-    username: '433c43500cb12d33538bcb17',
-    credential: 'XZioDDDZqa/4mkDj',
-  },
-  {
-    urls: 'turn:global.relay.metered.ca:443',
-    username: '433c43500cb12d33538bcb17',
-    credential: 'XZioDDDZqa/4mkDj',
-  },
-  {
-    urls: 'turns:global.relay.metered.ca:443?transport=tcp',
-    username: '433c43500cb12d33538bcb17',
-    credential: 'XZioDDDZqa/4mkDj',
-  },
 ]
 
 /**
