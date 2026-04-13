@@ -43,6 +43,13 @@ export default function Room({
   const isConnected = state.connectionStatus === 'connected' || state.connectionStatus === 'relay'
   const hasFiles = state.incoming.size > 0 || state.fileUrls.size > 0 || state.fileMeta.size > 0
 
+  const connectionTypeLabel =
+    state.connectionType === 'turn'
+      ? '(TURN)'
+      : state.connectionType === 'direct'
+        ? '(P2P directo)'
+        : ''
+
   function getExpiryConfig(): ExpiryConfig | null {
     const cfg: ExpiryConfig = {}
     if (expiry.timeEnabled) cfg.time = expiry.time
@@ -124,7 +131,7 @@ export default function Room({
         </div>
         <div className={`status status-${state.connectionStatus}`} role="status" aria-live="polite">
           <span className="status-dot" aria-hidden="true" />
-          <span>{statusLabel}</span>
+          <span>{statusLabel}{connectionTypeLabel ? ` ${connectionTypeLabel}` : ''}</span>
         </div>
         <LanguageSelector inline />
         <ThemeToggle theme={theme} onToggle={onToggleTheme} inline />
@@ -160,7 +167,7 @@ export default function Room({
 
       {state.connectionStatus === 'relay' ? (
         <div className="relay-warning" role="status" aria-live="polite">
-          <strong>⚠️</strong> {t.room.relayWarning}
+          <strong>⚠️</strong> {t.room.relayWarning} (vía servidor)
         </div>
       ) : null}
 

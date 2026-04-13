@@ -1,12 +1,14 @@
-import type { AppState } from '@client/app/state'
+import type { AppState, ConnectionType } from '@client/app/state'
 import type { ConnectionStatus, TransferMessage } from '@shared/domain/types'
 import { wsSend } from '@features/connection/application/signaling'
 
 const CONNECT_TIMEOUT_MS = 20000
 const DISCONNECT_GRACE_MS = 3500
 
+// Orden: STUN primero (descubrimiento rápido de IPs), luego TURN (fallback para NAT restrictivo)
 const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.relay.metered.ca:80' },
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
   {
     urls: 'turn:global.relay.metered.ca:80',
     username: '433c43500cb12d33538bcb17',
@@ -35,6 +37,7 @@ const ICE_SERVERS: RTCIceServer[] = [
  */
 export interface WebRtcPorts {
   setStatus(status: ConnectionStatus): void
+  setConnectionType(type: ConnectionType): void
   handleMetaMessage(msg: TransferMessage): void
   handleChunk(buffer: ArrayBuffer): void
 }
@@ -79,6 +82,8 @@ export async function startPeerConnection(
     if (s === 'connected') {
       clearConnectionTimers(state)
       ports.setStatus('connected')
+      // Detectar si es directo o vía TURN
+      void detectConnectionType(pc).then((type) => ports.setConnectionType(type))
       return
     }
     if (s === 'failed') switchToRelay(state, ports)
@@ -151,6 +156,7 @@ export function switchToRelay(state: AppState, ports: WebRtcPorts): void {
   state.pc?.close()
   state.pc = null
   state.dc = null
+  state.connectionType = 'unknown'
   wsSend(state, { type: 'relay-mode' })
   ports.setStatus('relay')
 }
@@ -174,6 +180,39 @@ export function sendMeta(state: AppState, data: TransferMessage): void {
 
 // ── Internos ─────────────────────────────────────────────────────────────────
 
+/**
+ * Detecta si la conexión P2P es directa o pasa por un servidor TURN.
+ * Revisa el candidato ICE seleccionado: si es de tipo 'relay', usa TURN.
+ */
+async function detectConnectionType(pc: RTCPeerConnection): Promise<ConnectionType> {
+  try {
+    const stats = await pc.getStats()
+    let selectedPairId: string | undefined
+    // Primera pasada: encontrar el transport con selectedCandidatePairId
+    for (const [, report] of stats) {
+      if (report.type === 'transport' && report.selectedCandidatePairId) {
+        selectedPairId = report.selectedCandidatePairId
+        break
+      }
+    }
+    if (!selectedPairId) return 'unknown'
+    // Segunda pasada: encontrar el candidate pair y el remote candidate
+    const pair = stats.get(selectedPairId)
+    if (pair?.type === 'candidate-pair' && pair.remoteCandidateId) {
+      const remoteCandidate = stats.get(pair.remoteCandidateId)
+      if (remoteCandidate?.candidateType === 'relay') {
+        console.log('[ICE] Conexión vía TURN (relay)')
+        return 'turn'
+      }
+      console.log('[ICE] Conexión directa (P2P)')
+      return 'direct'
+    }
+  } catch (err) {
+    console.warn('[ICE] No se pudo detectar tipo de conexión:', err)
+  }
+  return 'unknown'
+}
+
 function setupDataChannel(state: AppState, ports: WebRtcPorts, channel: RTCDataChannel): void {
   state.dc = channel
   channel.binaryType = 'arraybuffer'
@@ -182,7 +221,10 @@ function setupDataChannel(state: AppState, ports: WebRtcPorts, channel: RTCDataC
     ports.setStatus('connected')
   }
   channel.onclose = () => {
-    if (!state.useRelay) ports.setStatus('disconnected')
+    if (!state.useRelay) {
+      state.connectionType = 'unknown'
+      ports.setStatus('disconnected')
+    }
   }
   channel.onmessage = (event) => {
     if (typeof event.data === 'string') {

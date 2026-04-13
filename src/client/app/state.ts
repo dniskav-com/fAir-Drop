@@ -5,6 +5,8 @@ import type {
   TransferMessage,
 } from '../shared/domain/types.js'
 
+export type ConnectionType = 'direct' | 'turn' | 'unknown'
+
 export interface ExpiryRuntime {
   timer?: number
   downloadsLeft?: number
@@ -33,6 +35,8 @@ export interface AppState {
 
   // ── UI derivada (sin DOM) ────────────────────────────────────
   connectionStatus: ConnectionStatus
+  /** Tipo de conexión P2P: 'direct' = peer-to-peer real, 'turn' = vía servidor TURN */
+  connectionType: ConnectionType
   homeError: string | null
   roomError: string | null
 
@@ -74,6 +78,7 @@ export function createAppState(): AppState {
     shareUrl: null,
 
     connectionStatus: 'waiting',
+    connectionType: 'unknown',
     homeError: null,
     roomError: null,
 

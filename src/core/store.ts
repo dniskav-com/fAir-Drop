@@ -85,6 +85,11 @@ export class FairDropStore {
     this.notify()
   }
 
+  private setConnectionType(type: import('../client/app/state').ConnectionType): void {
+    this._state.connectionType = type
+    this.notify()
+  }
+
   private showHomeError(message: string): void {
     this._state.homeError = message
     this.notify()
@@ -174,6 +179,7 @@ export class FairDropStore {
   private get rtcPorts(): WebRtcPorts {
     return {
       setStatus: (s) => this.setStatus(s),
+      setConnectionType: (t) => this.setConnectionType(t),
       handleMetaMessage: (msg) => handleMetaMessage(this._state, msg, this.notify),
       handleChunk: (buf) => handleChunk(this._state, buf, this.notify),
     }

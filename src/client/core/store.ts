@@ -60,6 +60,10 @@ export class FairDropStore {
           this.notify()
         }
       },
+      setConnectionType: (type: import('../app/state').ConnectionType) => {
+        this._state.connectionType = type
+        this.notify()
+      },
       handleMetaMessage: (msg: TransferMessage) => {
         handleMetaMessage(this._state, msg, this.notify)
       },
