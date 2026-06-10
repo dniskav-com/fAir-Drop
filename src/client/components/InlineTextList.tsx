@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import type { AppState } from '../app/state'
 import { elapsed } from '../shared/application/format'
 import { useTranslation } from '../i18n'
@@ -107,9 +107,11 @@ function tokenize(text: string, format: string): string {
 
 function InlineTextItem({
   entry,
+  expiryRuntime,
   t,
 }: {
   entry: import('../shared/domain/types').TextMessageEntry
+  expiryRuntime: import('../app/state').ExpiryRuntime | undefined
   t: import('../i18n/types').Translations
 }) {
   const [expanded, setExpanded] = useState(true)
@@ -118,19 +120,41 @@ function InlineTextItem({
   const { message, direction } = entry
   const isLong = message.content.length > 300
 
+  const store = (window as any).__fairdrop
+
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(message.content)
+    if (message.expiry?.downloads) {
+      store?.recordTextCopy(message.id)
+    }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }, [message.content])
+  }, [message.content, message.id, message.expiry?.downloads, store])
 
-  const store = (window as any).__fairdrop
   const handleDelete = useCallback(() => {
     store?.deleteText(message.id)
   }, [message.id, store])
 
+  // Record copy on Ctrl+C / Cmd+C from document
+  useEffect(() => {
+    if (!message.expiry?.downloads) return
+    function onDocumentCopy() {
+      const sel = document.getSelection()
+      if (!sel || sel.isCollapsed) return
+      const li = document.querySelector(`li[data-id="${message.id}"]`)
+      if (li && sel.anchorNode && li.contains(sel.anchorNode)) {
+        store?.recordTextCopy(message.id)
+      }
+    }
+    document.addEventListener('copy', onDocumentCopy)
+    return () => document.removeEventListener('copy', onDocumentCopy)
+  }, [message.id, message.expiry?.downloads, store])
+
+  const downloadsLeft = expiryRuntime?.downloadsLeft
+  const remaining = expiryRuntime?.remaining
+
   return (
-    <li className="message-bubble">
+    <li className="message-bubble" data-id={message.id}>
       <div className="message-header">
         <span
           className={
@@ -143,6 +167,9 @@ function InlineTextItem({
           {message.format}
         </span>
         <span className="message-time">{elapsed(message.timestamp)}</span>
+        {remaining != null && (
+          <span className="expiry-indicator">{remaining}s</span>
+        )}
       </div>
       <div className={`message-content${!expanded ? ' collapsed' : ''}`}>
         <pre>
@@ -156,19 +183,22 @@ function InlineTextItem({
       </div>
       {isLong && (
         <button
-          className="btn btn-ghost btn-small"
+          className="btn btn-ghost btn-small expand-toggle"
+          aria-expanded={expanded}
           onClick={() => setExpanded((x) => !x)}
           style={{ marginBlockStart: 4 }}
-        >
-          {expanded ? (msgs?.collapse ?? 'Collapse') : (msgs?.expand ?? 'Expand')}
-        </button>
+        />
       )}
       <div className="message-actions">
         <button
           className={`btn btn-icon btn-small message-copy-btn${copied ? ' copied' : ''}`}
           onClick={handleCopy}
         >
-          {copied ? (msgs?.copied ?? 'Copied!') : (msgs?.copy ?? 'Copy')}
+          {copied
+            ? (msgs?.copied ?? 'Copied!')
+            : downloadsLeft != null
+              ? `${msgs?.copy ?? 'Copy'} (${downloadsLeft})`
+              : (msgs?.copy ?? 'Copy')}
         </button>
         <button className="btn btn-icon btn-small btn-delete" onClick={handleDelete}>
           {msgs?.delete ?? 'Delete'}
@@ -184,7 +214,6 @@ export default function InlineTextList({
   state: AppState
 }) {
   const { t } = useTranslation()
-  const msgs = t.messages
   const entries = Array.from(state.textMessages.values())
 
   if (entries.length === 0) return null
@@ -192,7 +221,12 @@ export default function InlineTextList({
   return (
     <ul className="file-list">
       {entries.map((entry) => (
-        <InlineTextItem key={entry.message.id} entry={entry} t={t} />
+        <InlineTextItem
+          key={entry.message.id}
+          entry={entry}
+          expiryRuntime={state.textExpiry.get(entry.message.id)}
+          t={t}
+        />
       ))}
     </ul>
   )

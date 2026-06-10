@@ -52,7 +52,7 @@ function AppInner() {
           banPeer: (duration: number | null) => store.banPeer(duration),
           leaveRoom: () => store.leaveRoom(),
           retryP2P: () => store.retryP2P(),
-          sendText: (content: string, format: string) => store.sendText(content, format),
+          sendText: (content: string, format: string, expiry: ExpiryConfig | null) => store.sendText(content, format, expiry),
           deleteText: (id: string) => store.deleteText(id),
           setPendingText: (text: string | null) => store.setPendingText(text),
           clearPendingText: () => store.setPendingText(null),

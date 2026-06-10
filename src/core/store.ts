@@ -41,6 +41,7 @@ import {
   sendText as sendTextFeature,
   handleTextMessage,
   deleteText as deleteTextFeature,
+  recordCopy as recordCopyFeature,
 } from '../client/features/text/application/text.js'
 import { showRoom, resetToHome } from '../client/features/rooms/application/rooms.js'
 
@@ -214,12 +215,16 @@ export class FairDropStore {
     this.notify()
   }
 
-  sendText(content: string, format: string): void {
-    sendTextFeature(this._state, content, format, this.notify)
+  sendText(content: string, format: string, expiry: ExpiryConfig | null = null): void {
+    sendTextFeature(this._state, content, format, expiry, this.notify)
   }
 
   deleteText(id: string): void {
     deleteTextFeature(this._state, id, this.notify)
+  }
+
+  recordTextCopy(id: string): void {
+    recordCopyFeature(this._state, id, this.notify)
   }
 
   /**

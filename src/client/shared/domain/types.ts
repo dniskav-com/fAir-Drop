@@ -39,6 +39,7 @@ export interface TextMessage {
   content: string
   format: 'plain' | 'json' | 'yaml' | 'html' | 'xml' | 'markdown'
   timestamp: string
+  expiry?: ExpiryConfig
 }
 
 export interface TextDeletedMessage {

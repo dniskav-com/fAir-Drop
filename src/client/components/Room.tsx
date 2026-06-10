@@ -17,7 +17,7 @@ type RoomActions = {
   banPeer(duration: number | null): void
   leaveRoom(): void
   retryP2P(): void
-  sendText(content: string, format: string): void
+  sendText(content: string, format: string, expiry: ExpiryConfig | null): void
   deleteText(id: string): void
   setPendingText(text: string | null): void
   clearPendingText(): void
@@ -226,7 +226,7 @@ export default function Room({
             actions.clearPendingText()
           }}
           onSendAsInline={(format) => {
-            actions.sendText(state.pendingText!, format)
+            actions.sendText(state.pendingText!, format, getExpiryConfig())
             actions.clearPendingText()
           }}
           onClose={() => actions.clearPendingText()}
