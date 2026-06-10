@@ -3,6 +3,8 @@ import type { AppState } from '../app/state'
 import type { ExpiryConfig } from '../shared/domain/types'
 import PeersPanel from './PeersPanel'
 import FileList from './FileList'
+import TextPasteModal from './TextPasteModal'
+import InlineTextList from './InlineTextList'
 import ThemeToggle from './ThemeToggle'
 import LanguageSelector from './LanguageSelector'
 import { useTranslation } from '../i18n'
@@ -15,6 +17,10 @@ type RoomActions = {
   banPeer(duration: number | null): void
   leaveRoom(): void
   retryP2P(): void
+  sendText(content: string, format: string): void
+  deleteText(id: string): void
+  setPendingText(text: string | null): void
+  clearPendingText(): void
 }
 
 export default function Room({
@@ -74,11 +80,16 @@ export default function Room({
       if (files && files.length > 0) {
         e.preventDefault()
         void sendSelected(Array.from(files))
+        return
+      }
+      const text = e.clipboardData?.getData('text/plain')
+      if (text && text.trim()) {
+        actions.setPendingText(text.trim())
       }
     }
     window.addEventListener('paste', handlePaste)
     return () => window.removeEventListener('paste', handlePaste)
-  }, [sendSelected])
+  }, [sendSelected, actions.setPendingText])
 
   async function copyCode() {
     if (!state.roomCode) return
@@ -206,6 +217,22 @@ export default function Room({
         </aside>
       ) : null}
 
+      {state.pendingText ? (
+        <TextPasteModal
+          text={state.pendingText}
+          onSendAsFile={(text) => {
+            const file = new File([text], 'clipboard.txt', { type: 'text/plain' })
+            void sendSelected([file])
+            actions.clearPendingText()
+          }}
+          onSendAsInline={(format) => {
+            actions.sendText(state.pendingText!, format)
+            actions.clearPendingText()
+          }}
+          onClose={() => actions.clearPendingText()}
+        />
+      ) : null}
+
       <div className="room-body">
         <section className="room-main" aria-label={t.room.filesTitle}>
           <div
@@ -314,6 +341,15 @@ export default function Room({
                   downloadFile: actions.downloadFile,
                 }}
               />
+            </section>
+          ) : null}
+
+          {state.textMessages.size > 0 ? (
+            <section className="file-list-section" aria-labelledby="messages-title">
+              <h2 id="messages-title" className="section-title">
+                {t.messages?.title ?? 'Messages'}
+              </h2>
+              <InlineTextList state={state} />
             </section>
           ) : null}
         </section>

@@ -74,6 +74,21 @@ export interface Translations {
     light: string
     dark: string
   }
+  messages?: {
+    title: string
+    sendAsFile: string
+    sendAsInline: string
+    preview: string
+    format: string
+    copy: string
+    copied: string
+    delete: string
+    expand: string
+    collapse: string
+    sent: string
+    received: string
+    empty: string
+  }
 }
 
 export type Locale = 'es' | 'en' | 'fr' | 'de'

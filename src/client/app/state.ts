@@ -2,6 +2,7 @@ import type {
   ConnectionStatus,
   IncomingFile,
   PeerInfo,
+  TextMessageEntry,
   TransferMessage,
 } from '../shared/domain/types.js'
 
@@ -50,6 +51,11 @@ export interface AppState {
   fileMeta: Map<string, { name: string; size?: number }>
   fileExpiry: Map<string, ExpiryRuntime>
   incoming: Map<string, IncomingFile>
+
+  // ── Mensajes de texto inline ────────────────────────────────
+  textMessages: Map<string, TextMessageEntry>
+  textExpiry: Map<string, ExpiryRuntime>
+  pendingText: string | null
 }
 
 // Puertos que el store implementa para señalización WS
@@ -90,5 +96,9 @@ export function createAppState(): AppState {
     fileMeta: new Map(),
     fileExpiry: new Map(),
     incoming: new Map(),
+
+    textMessages: new Map(),
+    textExpiry: new Map(),
+    pendingText: null,
   }
 }

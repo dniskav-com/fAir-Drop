@@ -15,6 +15,8 @@ import type {
   ConnectionStatus,
   ExpiryConfig,
   SignalMessage,
+  TextDeletedMessage,
+  TextMessage,
   TransferMessage,
 } from '../client/shared/domain/types.js'
 import { connectWs, wsSend } from '../client/features/connection/application/signaling.js'
@@ -35,6 +37,11 @@ import {
   recordDownload,
   sendFiles,
 } from '../client/features/transfer/application/transfer.js'
+import {
+  sendText as sendTextFeature,
+  handleTextMessage,
+  deleteText as deleteTextFeature,
+} from '../client/features/text/application/text.js'
 import { showRoom, resetToHome } from '../client/features/rooms/application/rooms.js'
 
 export type { AppState }
@@ -114,7 +121,15 @@ export class FairDropStore {
     this._state.isCreator = true
     const ws = connectWs(this._state, {
       onSignal: (msg) => this.handleSignal(msg),
-      onRelayMeta: (msg) => handleMetaMessage(this._state, msg, this.notify),
+      onRelayMeta: (msg) => {
+        if (msg.type === 'text-inline') {
+          handleTextMessage(this._state, msg as TextMessage, this.notify)
+        } else if (msg.type === 'text-deleted') {
+          deleteTextFeature(this._state, (msg as TextDeletedMessage).id, this.notify)
+        } else {
+          handleMetaMessage(this._state, msg, this.notify)
+        }
+      },
       onBinaryChunk: (buf) => handleChunk(this._state, buf, this.notify),
       showHomeError: (msg) => this.showHomeError(msg),
     })
@@ -129,7 +144,15 @@ export class FairDropStore {
     this._state.isCreator = false
     const ws = connectWs(this._state, {
       onSignal: (msg) => this.handleSignal(msg),
-      onRelayMeta: (msg) => handleMetaMessage(this._state, msg, this.notify),
+      onRelayMeta: (msg) => {
+        if (msg.type === 'text-inline') {
+          handleTextMessage(this._state, msg as TextMessage, this.notify)
+        } else if (msg.type === 'text-deleted') {
+          deleteTextFeature(this._state, (msg as TextDeletedMessage).id, this.notify)
+        } else {
+          handleMetaMessage(this._state, msg, this.notify)
+        }
+      },
       onBinaryChunk: (buf) => handleChunk(this._state, buf, this.notify),
       showHomeError: (msg) => this.showHomeError(msg),
     })
@@ -140,8 +163,18 @@ export class FairDropStore {
     // Close the WebSocket to notify the server and ensure the room is
     // removed immediately (avoids zombie rooms on mobile reloads).
     this.disconnect()
-    cleanupFiles(this._state, this.notify)
+    this.cleanup()
     resetToHome(this._state, reason, this.notify)
+  }
+
+  private cleanup(): void {
+    cleanupFiles(this._state, this.notify)
+    this._state.textMessages.clear()
+    this._state.textExpiry.forEach((t) => {
+      if (t.timer) window.clearTimeout(t.timer)
+    })
+    this._state.textExpiry.clear()
+    this._state.pendingText = null
   }
 
   // ── Peers ───────────────────────────────────────────────────────────────────
@@ -174,6 +207,21 @@ export class FairDropStore {
     recordDownload(this._state, fileId, this.notify)
   }
 
+  // ── Texto inline ───────────────────────────────────────────────────────────
+
+  setPendingText(text: string | null): void {
+    this._state.pendingText = text
+    this.notify()
+  }
+
+  sendText(content: string, format: string): void {
+    sendTextFeature(this._state, content, format, this.notify)
+  }
+
+  deleteText(id: string): void {
+    deleteTextFeature(this._state, id, this.notify)
+  }
+
   /**
    * Reintentar conexión P2P desde modo relay.
    * Cierra la conexión actual y solicita una nueva negociación WebRTC.
@@ -200,7 +248,15 @@ export class FairDropStore {
     return {
       setStatus: (s) => this.setStatus(s),
       setConnectionType: (t) => this.setConnectionType(t),
-      handleMetaMessage: (msg) => handleMetaMessage(this._state, msg, this.notify),
+      handleMetaMessage: (msg) => {
+        if (msg.type === 'text-inline') {
+          handleTextMessage(this._state, msg as TextMessage, this.notify)
+        } else if (msg.type === 'text-deleted') {
+          deleteTextFeature(this._state, (msg as TextDeletedMessage).id, this.notify)
+        } else {
+          handleMetaMessage(this._state, msg, this.notify)
+        }
+      },
       handleChunk: (buf) => handleChunk(this._state, buf, this.notify),
     }
   }
@@ -276,7 +332,7 @@ export class FairDropStore {
 
       case 'kicked':
       case 'banned':
-        cleanupFiles(state, this.notify)
+        this.cleanup()
         resetToHome(state, msg.reason ?? 'Has sido desconectado de la sala.', this.notify)
         break
 
@@ -285,7 +341,13 @@ export class FairDropStore {
         break
 
       case 'relay-meta':
-        handleMetaMessage(state, msg.payload, this.notify)
+        if (msg.payload.type === 'text-inline') {
+          handleTextMessage(state, msg.payload as TextMessage, this.notify)
+        } else if (msg.payload.type === 'text-deleted') {
+          deleteTextFeature(state, (msg.payload as TextDeletedMessage).id, this.notify)
+        } else {
+          handleMetaMessage(state, msg.payload, this.notify)
+        }
         break
     }
   }

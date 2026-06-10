@@ -77,6 +77,21 @@ const es: Translations = {
     light: 'Modo claro',
     dark: 'Modo oscuro',
   },
+  messages: {
+    title: 'Mensajes',
+    sendAsFile: 'Enviar como .txt',
+    sendAsInline: 'Enviar como inline',
+    preview: 'Vista previa',
+    format: 'Formato',
+    copy: 'Copiar',
+    copied: '¡Copiado!',
+    delete: 'Eliminar',
+    expand: 'Expandir',
+    collapse: 'Colapsar',
+    sent: 'enviado',
+    received: 'recibido',
+    empty: 'No hay mensajes',
+  },
 }
 
 export default es

@@ -55,6 +55,12 @@
     --radius: 8px;
     --radius-sm: 6px;
     --space: 16px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --border: var(--line);
+    --surface: var(--panel-tint);
+    --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace;
     --font:
       'Poppins', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
       sans-serif;
@@ -1140,6 +1146,98 @@
     box-shadow: none;
     min-inline-size: 72px;
   }
+
+  /* ── Inline text messages ───────────────────────────────────── */
+  .message-bubble {
+    background: var(--panel-solid);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-2);
+  }
+
+  .message-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+    font-size: 0.75rem;
+  }
+
+  .message-content {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .message-content.collapsed {
+    max-height: 120px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .message-content.collapsed::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(transparent, var(--panel-solid));
+  }
+
+  .message-actions {
+    display: flex;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+  }
+
+  /* Syntax highlighting */
+  .syntax-plain { color: var(--ink); }
+  .syntax-json .key { color: var(--blue); }
+  .syntax-json .string { color: var(--green); }
+  .syntax-json .number { color: var(--amber); }
+  .syntax-json .bool { color: #AF52DE; }
+  .syntax-json .null { color: var(--ink-muted); }
+  .syntax-yaml .key { color: var(--blue); }
+  .syntax-yaml .string { color: var(--green); }
+  .syntax-yaml .number { color: var(--amber); }
+  .syntax-html .tag { color: var(--red); }
+  .syntax-html .attr-name { color: var(--blue); }
+  .syntax-html .attr-value { color: var(--green); }
+  .syntax-html .comment { color: var(--ink-muted); font-style: italic; }
+  .syntax-xml .tag { color: var(--red); }
+  .syntax-xml .attr-name { color: var(--blue); }
+  .syntax-xml .attr-value { color: var(--green); }
+  .syntax-markdown .heading { color: var(--blue); font-weight: 600; }
+  .syntax-markdown .bold { font-weight: 700; }
+  .syntax-markdown .italic { font-style: italic; }
+  .syntax-markdown .code { background: var(--surface); border-radius: 4px; padding: 0 4px; }
+  .syntax-markdown .link { color: var(--blue); }
+
+  /* Format badges */
+  .format-badge {
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--ink-soft);
+  }
+  .format-badge[data-format="json"] { background: rgba(0, 122, 255, 0.15); color: var(--blue); }
+  .format-badge[data-format="yaml"] { background: rgba(88, 86, 214, 0.15); color: #5856D6; }
+  .format-badge[data-format="html"] { background: rgba(255, 59, 48, 0.15); color: var(--red); }
+  .format-badge[data-format="xml"] { background: rgba(255, 149, 0, 0.15); color: var(--amber); }
+  .format-badge[data-format="markdown"] { background: rgba(52, 199, 89, 0.15); color: var(--green); }
+  .format-badge[data-format="plain"] { background: var(--surface); color: var(--ink-soft); }
+
+  .message-copy-btn.copied { color: var(--green); }
+  .message-time { color: var(--ink-muted); font-size: 0.6875rem; }
 }
 
 @layer states {

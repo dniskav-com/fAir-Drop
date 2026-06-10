@@ -33,7 +33,25 @@ export interface FileDeletedMessage {
   fileId: string
 }
 
-export type TransferMessage = FileStartMessage | FileEndMessage | FileDeletedMessage
+export interface TextMessage {
+  type: 'text-inline'
+  id: string
+  content: string
+  format: 'plain' | 'json' | 'yaml' | 'html' | 'xml' | 'markdown'
+  timestamp: string
+}
+
+export interface TextDeletedMessage {
+  type: 'text-deleted'
+  id: string
+}
+
+export interface TextMessageEntry {
+  message: TextMessage
+  direction: 'sending' | 'receiving'
+}
+
+export type TransferMessage = FileStartMessage | FileEndMessage | FileDeletedMessage | TextMessage | TextDeletedMessage
 
 export type SignalMessage =
   | { type: 'room-created'; code: string }
