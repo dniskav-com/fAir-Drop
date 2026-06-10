@@ -4,6 +4,7 @@ import { useTranslation } from '../i18n'
 function detectFormat(text: string): string {
   if (/^\s*[\[{]/.test(text)) return 'json'
   if (/^\s*---/.test(text)) return 'yaml'
+  if (/^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*:\s*\S/m.test(text)) return 'yaml'
   if (/^\s*<[a-z]/i.test(text)) return 'html'
   return 'plain'
 }
