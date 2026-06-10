@@ -101,6 +101,7 @@ src/client/features/qr/               qr-scanner (BarcodeDetector)
 - Los botones en la cabecera y acciones se han reducido para empatar visualmente con el badge de estado (`Esperando...`). Ahora los controles usan una altura fija pequeña y padding reducido para mantener una línea visual compacta.
 - Se introdujo la clase `.btn-destructive` para acciones peligrosas como "Salir": fondo blanco/panel, texto en `--red` y borde rojo (sin sombra) siguiendo el patrón de los badges.
 - `btn-icon` y botones secundarios fueron ajustados para compartir la misma altura y alineación vertical con los badges.
+- Se agregó la clase `.btn-small` para botones compactos dentro de banners (ej: "Reintentar P2P").
 
 - El servidor conserva la sala cuando se desconecta el invitado; solo borra la sala cuando se va el creador.
 - En modo relay, `sendFile` activa `state.useRelay = true` automaticamente si `dc` no esta abierto pero `ws` si. Esto permite al host enviar sin P2P cuando hay NAT restrictivo.
@@ -146,11 +147,33 @@ La app funciona con React. `App.tsx` monta `Home` o `Room` segun `state.screen`.
 - Causa: `sendFile` lanzaba `no-transport` si `dc` no estaba abierto, incluso si el WebSocket al servidor estaba disponible.
 - Fix: fallback automatico a relay si `ws.readyState === OPEN`. Se activa `state.useRelay = true` y se envia por WebSocket. Se muestra banner de aviso en Room.
 
+### Funcionalidades recientes (2026-04-13)
+
+**Detección de tipo de conexión**
+
+- Se agregó `connectionType: 'direct' | 'turn' | 'unknown'` al `AppState`.
+- La función `detectConnectionType(pc)` inspecciona `pc.getStats()` para verificar el `selectedCandidatePair` y el `remoteCandidate`. Si `candidateType === 'relay'`, la conexión pasa por TURN; si no, es P2P directo.
+- El badge de estado muestra `(P2P directo)` o `(TURN)` según corresponda.
+
+**Reintentar P2P**
+
+- Cuando la conexión cae a relay, aparece un botón "Reintentar P2P" en el banner naranja.
+- Al hacer click: se envía la señal `retry-p2p` via WebSocket, ambos lados resetean `pc`, `dc`, `useRelay`, y el creador inicia nueva negociación.
+- Útil cuando el usuario cambia de red y quiere reintentar sin salir de la sala.
+
+**Chunk size optimizado**
+
+- Aumentado de 16 KB a 128 KB en `transfer.ts`. Reduce la cantidad de mensajes para archivos grandes → transferencias más rápidas.
+
 ## Proximos pasos sugeridos
 
-- Anadir TURN server para mejorar tasa de exito P2P fuera de LAN (Metered.ca tiene tier gratuito). Ver seccion TURN en este archivo.
 - Evaluar servir la app con HTTPS en desarrollo local (mkcert) para paridad con produccion.
 - Eliminar `src/client/core/store.ts` (duplicado incompleto); el store activo es `src/core/store.ts`.
+- **Paste desde portapapeles**: detectar `Ctrl+V`/`Cmd+V` o botón "Pegar" para enviar imágenes/texto del portapapeles directamente.
+
+### Nota sobre TURN
+
+Se probó Metered.ca como servidor TURN pero **se decidió no usarlo**. WebRTC elegía el relay TURN incluso cuando había conectividad directa disponible, resultando en transferencias más lentas y consumo de quota. La configuración actual usa solo STUN de Google para P2P directo; si falla, cae al relay del VPS propio. TURN solo sería útil si ambos peers están detrás de NAT simétrico estricto — caso poco frecuente para el uso previsto de la app.
 
 ---
 
@@ -161,7 +184,7 @@ La app funciona con React. `App.tsx` monta `Home` o `Room` segun `state.screen`.
 - El dominio esta en Cloudflare.
 - El VPS esta en Hetzner con Caddy como proxy inverso.
 - `dniskav.com` ya corre otro servicio (Vite) en el puerto 3000.
-- fAir Drop debe correr en el puerto 3001 bajo el subdominio `fairdrop.dniskav.com`.
+- fAir Drop debe correr en el puerto 3001 bajo el subdominio `fair-drop.dniskav.com` (con guion).
 
 ### 1. Clonar y preparar
 
@@ -213,7 +236,7 @@ pm2 list
 Anadir al Caddyfile existente:
 
 ```
-fairdrop.dniskav.com {
+fair-drop.dniskav.com {
     reverse_proxy localhost:3001
 }
 ```
@@ -226,7 +249,7 @@ caddy reload --config /etc/caddy/Caddyfile
 
 ### 5. Cloudflare
 
-Crear un registro DNS tipo A para `fairdrop.dniskav.com` apuntando a la IP del VPS.
+Crear un registro DNS tipo A para `fair-drop.dniskav.com` apuntando a la IP del VPS.
 
 Dos opciones para el proxy:
 
