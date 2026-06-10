@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useCallback, useEffect } from 'react'
 import type { AppState } from '../app/state'
 import type { ExpiryConfig } from '../shared/domain/types'
 import PeersPanel from './PeersPanel'
@@ -58,7 +58,7 @@ export default function Room({
     return cfg.time || cfg.downloads ? cfg : null
   }
 
-  async function sendSelected(files: File[]) {
+  const sendSelected = useCallback(async (files: File[]) => {
     if (!files.length || !isConnected) return
     try {
       await actions.sendFiles(files, getExpiryConfig())
@@ -66,7 +66,19 @@ export default function Room({
       console.error('sendFiles error', err)
     }
     if (fileInputRef.current) fileInputRef.current.value = ''
-  }
+  }, [isConnected, actions.sendFiles, expiry.timeEnabled, expiry.time, expiry.dlEnabled, expiry.dl])
+
+  useEffect(() => {
+    function handlePaste(e: ClipboardEvent) {
+      const files = e.clipboardData?.files
+      if (files && files.length > 0) {
+        e.preventDefault()
+        void sendSelected(Array.from(files))
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [sendSelected])
 
   async function copyCode() {
     if (!state.roomCode) return
@@ -225,7 +237,7 @@ export default function Room({
             ) : (
               <div className="drop-content">
                 <span className="drop-icon" aria-hidden="true">+</span>
-                <p className="drop-label">{t.room.dropFiles}</p>
+                <p className="drop-label">{t.room.pasteOrDrop}</p>
                 <p className="drop-sub">{t.room.dropClick}</p>
                 <button
                   className="btn btn-secondary"

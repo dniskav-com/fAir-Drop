@@ -37,6 +37,7 @@ export interface Translations {
     shareToConnect: string
     dropFiles: string
     dropClick: string
+    pasteOrDrop: string
     selectFiles: string
     expiryOptions: string
     expiresIn: string
