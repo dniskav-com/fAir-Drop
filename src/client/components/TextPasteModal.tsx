@@ -6,6 +6,20 @@ function detectFormat(text: string): string {
   if (/^\s*---/.test(text)) return 'yaml'
   if (/^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*:\s*\S/m.test(text)) return 'yaml'
   if (/^\s*<[a-z]/i.test(text)) return 'html'
+  // Markdown detection: headings, bold, italic, code, links, tables, lists, blockquotes
+  if (
+    /^\s*#{1,6}\s/m.test(text) || // headings
+    /\*\*.*?\*\*/s.test(text) || // bold
+    /\*.*?\*/s.test(text) || // italic
+    /`[^`]+`/.test(text) || // inline code
+    /\[.*?\]\(.*?\)/s.test(text) || // links
+    /^\s*\|.*\|/m.test(text) || // tables
+    /^\s*[-*+]\s/m.test(text) || // lists
+    /^\s*>\s/m.test(text) || // blockquotes
+    /^\s*```/m.test(text) // code blocks
+  ) {
+    return 'markdown'
+  }
   return 'plain'
 }
 
