@@ -149,6 +149,8 @@ export class Store {
     if (!id) return
     const t = this.state.transfers.get(id)
     if (!t) return
+    // Guard: no aceptar más chunks de los declarados (evita memoria desbordada por un peer malicioso)
+    if (t.received >= t.totalChunks) return
     t.chunks.push(Buffer.from(data))
     t.received++
     this.emit()
@@ -207,17 +209,37 @@ export class Store {
     const idx = this.state.pendingDownloads.findIndex((d) => d.fileId === fileId)
     if (idx === -1) return
     const d = this.state.pendingDownloads[idx]
-    this.state.pendingDownloads.splice(idx, 1)
+
+    // El nombre viene del peer remoto: NO confiar en él.
+    // path.join() colapsa "../", así que sin sanitizar, un peer podría
+    // escribir fuera de ~/Downloads (path traversal).
+    const safeName = path.basename(String(d.name).replace(/\0/g, ''))
+    if (!safeName || safeName === '.' || safeName === '..') {
+      this.state.pendingDownloads.splice(idx, 1)
+      this.addLog('Descarga rechazada: nombre de archivo inválido', 'error')
+      this.emit()
+      return
+    }
+
+    const downloadsDir = path.join(os.homedir(), 'Downloads')
     const buf = Buffer.concat(d.chunks)
-    const savePath = path.join(os.homedir(), 'Downloads', d.name)
+    const savePath = path.join(downloadsDir, safeName)
+    // Defensa en profundidad: el destino resuelto debe seguir dentro de ~/Downloads
+    if (path.dirname(path.resolve(savePath)) !== path.resolve(downloadsDir)) {
+      this.state.pendingDownloads.splice(idx, 1)
+      this.addLog('Descarga rechazada: ruta fuera de ~/Downloads', 'error')
+      this.emit()
+      return
+    }
+    this.state.pendingDownloads.splice(idx, 1)
     try {
       fs.writeFileSync(savePath, buf)
       this.state.completedTransfers.unshift({
-        fileId: d.fileId, name: d.name, size: d.size,
+        fileId: d.fileId, name: safeName, size: d.size,
         direction: 'receiving', savedPath: savePath, completedAt: Date.now(),
       })
       if (this.state.completedTransfers.length > 20) this.state.completedTransfers.length = 20
-      this.addLog(`Guardado: ~/Downloads/${d.name}`, 'success')
+      this.addLog(`Guardado: ~/Downloads/${safeName}`, 'success')
     } catch (e) {
       this.addLog(`Error al guardar: ${e}`, 'error')
     }

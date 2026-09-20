@@ -4,6 +4,8 @@
 
 fAir Drop es una app local-first para compartir archivos entre dos dispositivos desde el navegador. La intencion del producto es ser un guino practico a AirDrop para casos donde compartir archivos entre computadoras en casa resulta incomodo.
 
+> **Nota 2026-09:** el puerto real de produccion es **3002** (pm2 `fairdrop`, no 3001). Tambien existe una **TUI** experimental en `TUI/` (ver seccion al final). La seguridad del stack fue auditada el 2026-09-20; los cambios relevantes estan marcados con **[seguridad]** en este documento.
+
 ## Como trabajar en este repo
 
 - Mantener la app simple: Node.js, Express, `ws`, TypeScript de navegador, React sin SSR.
@@ -125,6 +127,14 @@ El sistema de traducciones es ligero y sin dependencias externas. Funciona con R
 
 La app funciona con React. `App.tsx` monta `Home` o `Room` segun `state.screen`. El store (`src/core/store.ts`) es la unica fuente de verdad; React lee via `useSyncExternalStore`.
 
+### Seguridad (2026-09-20)
+
+- **`/api/status`**: publico devuelve solo metricas agregadas (`rooms`, `clients`, `uptime`). El detalle completo (IPs, UAs, codigos de sala, bans) requiere el header `x-admin-token` igual a `ADMIN_TOKEN` (pm2 env). El token vive en `.admin-token` (chmod 600, en .gitignore).
+- **`/status` (pagina HTML) da 404 en produccion**: `dist/status.html` no existe desde la migracion a Vite (commit `5a95eae` borro `public/status.html`). Pre-existente, no restaurado a proposito: su dato principal (IPs de peers) ahora es privado por diseno. Si se quiere restaurar, reconstruir la pagina para que consuma la API publica.
+- **Cabeceras HTTP**: Caddy aplica HSTS, `X-Frame-Options: DENY`, `nosniff`, CSP en los 3 subdominios. En fair-drop `Permissions-Policy: camera=(self)` es obligatorio — el escaner QR usa la camara. **No cambiar a `camera=()`** ni quitar el import de seguridad sin verificar el QR scanner.
+- **Rate limits vigentes** (server.js): salas via WS 20/IP cada 15 min; `/api/qr` 60 req/min.
+- El nombre de archivo que llega por `relay-meta` viene del peer y NO se confia al escribir en disco (ver TUI).
+
 ### Bugs arreglados (historico para no repetir)
 
 **DataChannel null en el guest (invitado no podia enviar archivos)**
@@ -183,8 +193,8 @@ Se probó Metered.ca como servidor TURN pero **se decidió no usarlo**. WebRTC e
 
 - El dominio esta en Cloudflare.
 - El VPS esta en Hetzner con Caddy como proxy inverso.
-- `dniskav.com` ya corre otro servicio (Vite) en el puerto 3000.
-- fAir Drop debe correr en el puerto 3001 bajo el subdominio `fair-drop.dniskav.com` (con guion).
+- `dniskav.com` ya corre otro servicio (Next.js portfolio) en el puerto 3000.
+- fAir Drop corre en el puerto **3002** bajo el subdominio `fair-drop.dniskav.com` (con guion).
 
 ### 1. Clonar y preparar
 
@@ -206,7 +216,7 @@ module.exports = {
       name: 'fairdrop',
       script: 'server.js',
       env: {
-        PORT: 3001,
+        PORT: 3002,
         NODE_ENV: 'production'
       }
     }
@@ -233,11 +243,13 @@ pm2 list
 
 ### 4. Configurar Caddy
 
-Anadir al Caddyfile existente:
+Anadir al Caddyfile existente (el real vive en `/root/var/www/dniskav/Caddyfile` y se recarga con `docker exec caddy caddy reload --config /etc/caddy/Caddyfile`):
 
 ```
 fair-drop.dniskav.com {
-    reverse_proxy localhost:3001
+    import security
+    header Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+    reverse_proxy host.docker.internal:3002
 }
 ```
 
@@ -309,3 +321,42 @@ Ya aplicado en `server.js`. Los limites actuales son:
 - **API QR**: 60 peticiones por IP cada minuto.
 
 Si necesitas ajustar los limites, busca `rateLimit` en `server.js`.
+
+## TUI (experimental, `TUI/`)
+
+Cliente de terminal (Node + `blessed` + `ws`) que usa el mismo servidor de
+señalización: `ws://localhost:3002/ws` en local, `wss://fair-drop.dniskav.com/ws`
+con `--remote`. Sin WebRTC: trabaja 100% en modo relay (chunks binarios por WS).
+
+```
+TUI/src/
+  index.ts               entry: URL por argv (--remote/--local) o FAIRDROP_SERVER
+  store.ts               Store: estado, recepcion relay, guardado en ~/Downloads
+  store/signal-handler.ts  mensajes de señalización (salas, peer, relay)
+  store/file-sender.ts   envío: readFileSync → chunks de 128 KB → sendBinary
+  services/connection.ts WebSocket cliente (JSON + binario)
+  ui/                    blessed: app, layout, render, dialogs, themes
+```
+
+### Estado de la TUI (2026-09-20, auditoria)
+
+- **`blessed` NO esta instalado** ni declarado (no hay `TUI/package.json`); el
+  proyecto no arranca desde este checkout tal cual. Falta crear `TUI/package.json`
+  con `blessed`, `ws` y `@types/node` o declararlas en el padre.
+- **Path traversal arreglado** en `store.ts` (`acceptDownload`): el nombre del
+  archivo viene del peer remoto. Ahora se hace `path.basename()` + rechazo de
+  `.`/`..`/NUL + verificacion de que la ruta resuelta quede dentro de
+  `~/Downloads`. **No quitar esa sanitizacion**: el peer es no confiable.
+- Guard en `onBinaryChunk`: no acepta mas chunks de los declarados en
+  `totalChunks` (evita que un peer desborde la memoria).
+- Typecheck: los archivos sin `blessed` compilan con `bunx tsc --noEmit`
+  (hay `@types/node` en el padre desde 2026-09). `ui/*` no se puede compilar
+  sin instalar `blessed`.
+
+### Lecciones de seguridad para futuros cambios (server + TUI + web)
+
+- Cualquier dato que llegue por el WS (nombres de archivo, mensajes, codes)
+  viene de un peer no confiable: sanear antes de tocar el sistema de archivos
+  o renderizar HTML.
+- La API publica no debe exponer IPs/UA/codigos de sala sin token de admin.
+- Si se agregan endpoints, montarlos tras rate limit (patron `qrLimiter`).
