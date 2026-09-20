@@ -6,6 +6,7 @@ const QRCode = require('qrcode')
 const { rateLimit } = require('express-rate-limit')
 
 const app = express()
+app.set('trust proxy', 1)
 const server = http.createServer(app)
 
 // noServer: true para filtrar el upgrade solo en /ws
@@ -175,18 +176,30 @@ function elapsed(date) {
 }
 
 // ── Status API ────────────────────────────────────────────────
+// Publico: solo metricas agregadas (sin IPs, UAs ni codigos de sala).
+// El detalle completo requiere el header "x-admin-token" igual a ADMIN_TOKEN.
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN
+
 app.get('/api/status', (req, res) => {
+  const isAdmin = !!ADMIN_TOKEN && req.headers['x-admin-token'] === ADMIN_TOKEN
+
   const data = {
     rooms: rooms.size,
     clients: clients.size,
     uptime: Math.floor(process.uptime()),
-    bans: [...bans.entries()].map(([ip, b]) => ({
-      ip,
-      type: b.until ? 'temporal' : 'permanente',
-      label: banLabel(b),
-    })),
-    rooms_detail: [],
   }
+
+  if (!isAdmin) {
+    res.json(data)
+    return
+  }
+
+  data.bans = [...bans.entries()].map(([ip, b]) => ({
+    ip,
+    type: b.until ? 'temporal' : 'permanente',
+    label: banLabel(b),
+  }))
+  data.rooms_detail = []
 
   for (const [code, room] of rooms.entries()) {
     const creator = clientInfo(room.creator)
