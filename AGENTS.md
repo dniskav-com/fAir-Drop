@@ -322,8 +322,50 @@ Ya aplicado en `server.js`. Los limites actuales son:
 
 Si necesitas ajustar los limites, busca `rateLimit` en `server.js`.
 
-## TUI (experimental, `TUI/`)
+## MCP para agentes IA (`mcp/`)
 
+Servidor MCP que permite a cualquier agente (OpenCode, Claude, etc.) enviar
+archivos desde el VPS a una persona a través de fAir Drop, sin UI y sin
+nueva superficie pública. Habla el mismo protocolo de relay que la TUI
+(créate sala por WSS → `relay-mode` → `file-start` + chunks binarios 128 KB
+→ `file-end`) pero por stdio local.
+
+```
+mcp/index.js      servidor MCP stdio (SDK @modelcontextprotocol/sdk)
+mcp/package.json  deps: ws, SDK, zod — instalar con `bun install`
+```
+
+### Tools expuestas
+
+| Tool | Qué hace |
+|---|---|
+| `fairdrop_create_session` | Crea sala y devuelve el código AL INSTANTE (no espera al par). Recibe rutas absolutas (máx. 10). |
+| `fairdrop_session_status` | Estado de la sesión: connecting/waiting/sending/sent/closed/error. `sent` = en el navegador del usuario, pendiente de confirmar descarga. |
+| `fairdrop_status` | Contadores públicos del servidor (salas, clientes, uptime). |
+
+### Flujo recomendado para el agente
+
+1. `fairdrop_create_session` con los archivos → obtener `room_code`
+2. Decirle al usuario: "entra en https://fair-drop.dniskav.com con el
+   código XXXX y confirma las descargas"
+3. `fairdrop_session_status` hasta `state === "sent"`
+4. La sala expira sola: 15 min esperando par, 10 s de margen tras enviar
+
+### Config en OpenCode (ya registrada, global)
+
+`~/.config/opencode/opencode.json` → `mcp.servers.fairdrop` con
+`node /root/var/www/fAir-Drop/mcp/index.js`. Verificar: `opencode mcp list`.
+
+### Notas
+
+- Solo rutas absolutas; el agente debe tener criterio con datos sensibles
+  (el envío es al VPS-relay → navegador del usuario vía HTTPS/WSS).
+- Sin persistencia: sesiones en memoria; expiran a los 15 min sin par.
+- Un bug ya corregido en este archivo: enviar `create-room` ANTES de que
+  el WS abra (`readyState 0`) lanza "WebSocket is not open" — siempre
+  enviar dentro de `ws.on('open')`.
+
+## TUI (experimental, `TUI/`)
 Cliente de terminal (Node + `blessed` + `ws`) que usa el mismo servidor de
 señalización: `ws://localhost:3002/ws` en local, `wss://fair-drop.dniskav.com/ws`
 con `--remote`. Sin WebRTC: trabaja 100% en modo relay (chunks binarios por WS).

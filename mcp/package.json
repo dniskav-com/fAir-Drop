@@ -1,0 +1,13 @@
+{
+  "name": "fairdrop-mcp",
+  "version": "1.0.0",
+  "description": "Servidor MCP para que agentes de IA envíen archivos desde el VPS a una persona vía fAir Drop (salas + relay)",
+  "main": "index.js",
+  "type": "commonjs",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ws": "^8.18.0",
+    "zod": "^4.3.6"
+  }
+}
