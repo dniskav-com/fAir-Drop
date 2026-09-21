@@ -19,8 +19,9 @@ La app crea una sala con un codigo corto. Otro dispositivo entra con ese codigo 
 - Lector de QR con camara usando `BarcodeDetector` cuando el navegador lo soporta.
 - Expulsion y baneo temporal o permanente del invitado.
 - Modo oscuro (por defecto) con toggle sol/luna. Persiste en `localStorage`.
-- Internacionalizacion: español, ingles, frances y aleman. Detecta el idioma del navegador automaticamente. Persiste en `localStorage`.
-- Pagina de estado en `/status`.
+- Internazionalizacion: español, ingles, frances y aleman. Detecta el idioma del navegador automaticamente. Persiste en `localStorage`.
+- API de estado `/api/status`: publico devuelve metricas agregadas; el detalle completo requiere token de administrador (`x-admin-token`). Ver `AGENTS.md`.
+- **Servidor MCP** (`mcp/`) para que agentes de IA envien archivos del servidor a una persona por consola (ver "Para agentes IA" abajo).
 
 ## Stack
 
@@ -32,6 +33,7 @@ La app crea una sala con un codigo corto. Otro dispositivo entra con ese codigo 
 - React 18
 - Vite
 - WebRTC en el navegador
+- MCP SDK (servidor MCP para agentes)
 
 ## Ejecutar
 
@@ -75,7 +77,7 @@ http://localhost:3002/status
 
 1. Arranca el servidor en el Mac o computadora que hara de host.
 2. Busca la IP local del host.
-3. Desde otro dispositivo de la misma red abre `http://IP_LOCAL:3000`.
+3. Desde otro dispositivo de la misma red abre `http://IP_LOCAL:3002`.
 4. Crea una sala en un dispositivo y entra desde el otro con el codigo, link o QR.
 
 En macOS puedes ver tu IP local con:
@@ -99,7 +101,70 @@ src/client/features/              Vertical slices: connection, rooms, transfer, 
 src/client/shared/                Tipos de dominio y utilidades compartidas.
 src/core/store.ts                 FairDropStore — estado reactivo global.
 public/style.css                  Sistema visual con dark mode via tokens CSS.
+mcp/                              Servidor MCP para agentes de IA (envio headless de archivos).
+TUI/                              Cliente de terminal experimental (Node + blessed + ws).
 ```
+
+## Para agentes IA (servidor MCP)
+
+fAir Drop incluye un servidor MCP que permite a un agente de IA (OpenCode,
+Claude, etc.) enviar archivos desde la maquina donde corre el servidor hacia
+una persona, sin UI y sin scp:
+
+```bash
+cd mcp && bun install    # instalar dependencias (ws, @modelcontextprotocol/sdk, zod)
+node mcp/index.js        # arranca por stdio
+```
+
+Tools que expone:
+
+| Tool | Descripcion |
+|---|---|
+| `fairdrop_create_session` | Crea la sala y devuelve el codigo de 4 caracteres al instante. Recibe rutas absolutas (max. 10 archivos). |
+| `fairdrop_session_status` | Estado de la sesion: `waiting` (esperando al usuario), `sent` (archivos enviados, pendiente de confirmar descarga), `error`, etc. |
+| `fairdrop_status` | Metricas publicas del servidor (salas, clientes, uptime). |
+
+Flujo recomendado: crear sesion → darle el codigo al usuario ("entra en
+https://fair-drop.dniskav.com con el codigo XXXX") → consultar estado hasta
+`sent`. La sala expira a los 15 minutos si nadie entra.
+
+El MCP corre por stdio local y habla el mismo protocolo de relay que la TUI
+(sala via WSS, `relay-mode`, `file-start` + chunks binarios de 128 KB +
+`file-end`), asi que no anade ninguna superficie publica nueva. Ver detalles
+y el bug de `ws.on('open')` documentado en `AGENTS.md`.
+
+Registro en OpenCode (global):
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "fairdrop": {
+        "type": "local",
+        "command": ["node", "/ruta/a/fAir-Drop/mcp/index.js"]
+      }
+    }
+  }
+}
+```
+
+## Cliente de terminal (TUI)
+
+Existe un cliente experimental de terminal en `TUI/` (Node + `blessed`) que
+usa el mismo servidor de senalizacion y envia archivos en modo relay. Ver
+`AGENTS.md` para estado, limitaciones y notas de seguridad.
+
+## Seguridad
+
+- Autenticacion por API key opcional en endpoints de estado; rate limiting
+  en creacion de salas (20/IP cada 15 min) y generacion de QR (60/min).
+- Los nombres de archivo que llegan por el canal se sanitizan antes de
+  escribir en disco (path traversal corregido en `TUI/src/store.ts`).
+- Cabeceras de seguridad aplicadas en el proxy del despliegue
+  (`Permissions-Policy: camera=(self)` en el subdominio, necesario para el
+  escaner QR).
+- Detalles de la auditoria completa y decisiones de diseno de seguridad:
+  ver `AGENTS.md`.
 
 ## Notas de diseno
 
