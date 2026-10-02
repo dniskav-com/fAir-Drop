@@ -125,6 +125,26 @@ function openSession(session) {
 const server = new McpServer({ name: 'fairdrop-mcp', version: '1.0.0' })
 
 server.tool(
+  'fairdrop_receive_session',
+  'Crea una sala para recibir archivos del usuario, o se une a su sala. Guarda archivos en una carpeta exclusiva y devuelve sus rutas mediante fairdrop_session_status. Límite: 512 MiB por archivo; sesión de 15 minutos.',
+  { room_code: z.string().length(4).optional().describe('Sala del usuario; omitir para crear una nueva') },
+  async ({ room_code }) => {
+    try {
+      const session = require('./receiver').receiveSession({
+        url: FAIRDROP_URL,
+        directory: require('path').join(__dirname, '../received'),
+        code: room_code?.toUpperCase(),
+      })
+      await session.ready
+      sessions.set(session.code, session)
+      return { content: [{ type: 'text', text: JSON.stringify({ room_code: session.code, directory: session.directory, instructions_para_el_usuario: 'Entra en https://fair-drop.dniskav.com con el código ' + session.code + ' y envía tus archivos.' }) }] }
+    } catch (err) {
+      return { isError: true, content: [{ type: 'text', text: err.message }] }
+    }
+  },
+)
+
+server.tool(
   'fairdrop_create_session',
   'Crea una sala de fAir Drop y prepara el envío de archivos del VPS hacia una persona. Devuelve inmediatamente el código de sala (4 caracteres) que el usuario debe introducir en https://fair-drop.dniskav.com para recibir los archivos. Después consulta fairdrop_session_status para saber cuándo se enviaron. Solo para rutas absolutas legibles del servidor; los archivos viajan por el VPS en modo relay.',
   {
@@ -181,6 +201,8 @@ server.tool(
           room_code: s.code,
           state: s.state,
           sent: s.sent,
+          received: s.received,
+          directory: s.directory,
           error: s.error ?? null,
           pending_descarga_usuario: s.state === 'sent',
         }),
