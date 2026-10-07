@@ -8,6 +8,7 @@ const fr: Translations = {
     or: 'ou',
     scanQr: 'Scanner QR',
     reconnect: 'Rejoindre la salle',
+    pendingShared: 'Fichiers en attente de partage',
     scanner: {
       title: 'Scanner la salle',
       close: 'Fermer',

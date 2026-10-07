@@ -8,6 +8,7 @@ import ThemeToggle from './components/ThemeToggle'
 import LanguageSelector from './components/LanguageSelector'
 import { useTheme } from './hooks/useTheme'
 import { LocaleProvider } from './i18n'
+import { initPwaShare } from './features/share/pwa-share'
 
 const store = new FairDropStore()
 
@@ -21,6 +22,9 @@ function AppInner() {
       /mobile|android|iphone|ipad/i.test(navigator.userAgent)
     document.documentElement.classList.toggle('is-mobile', isMobile)
     document.documentElement.classList.toggle('is-desktop', !isMobile)
+
+    // PWA share target (Android): archivos llegados por Compartir → fAir Drop
+    initPwaShare((files) => store.stashSharedFiles(files))
 
     const room = new URLSearchParams(location.search).get('room')
     if (room && /^[A-Z0-9]{4}$/i.test(room)) {

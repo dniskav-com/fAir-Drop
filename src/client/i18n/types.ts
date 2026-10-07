@@ -6,6 +6,7 @@ export interface Translations {
     or: string
     scanQr: string
     reconnect: string
+    pendingShared: string
     scanner: {
       title: string
       close: string

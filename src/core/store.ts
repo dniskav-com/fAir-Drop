@@ -332,6 +332,28 @@ export class FairDropStore {
     return sendFiles(this._state, files, expiry, this.notify, (msg) => this.showRoomError(msg))
   }
 
+  /**
+   * Archivos compartidos por el SO (PWA share target). Con sala activa se
+   * envían directamente; si no, quedan pendientes hasta crear/entrar en sala.
+   */
+  stashSharedFiles(files: File[]): void {
+    const usable = files.filter(Boolean)
+    if (!usable.length) return
+    if (this._state.roomCode) {
+      void this.sendFiles(usable)
+      return
+    }
+    this._state.pendingShared = [...this._state.pendingShared, ...usable]
+    this.notify()
+  }
+
+  private flushSharedPending(): void {
+    const pending = this._state.pendingShared
+    if (!pending.length) return
+    this._state.pendingShared = []
+    void this.sendFiles(pending)
+  }
+
   deleteFile(fileId: string): void {
     deleteFile(this._state, fileId, true, this.notify)
   }
@@ -424,6 +446,8 @@ export class FairDropStore {
 
       case 'peer-joined':
         await startPeerConnection(state, this.rtcPorts, true)
+        // Flush de compartidos de share-target con transporte real disponible
+        this.flushSharedPending()
         break
 
       case 'offer':

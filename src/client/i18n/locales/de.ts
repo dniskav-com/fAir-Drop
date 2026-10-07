@@ -8,6 +8,7 @@ const de: Translations = {
     or: 'oder',
     scanQr: 'QR scannen',
     reconnect: 'Raum wieder beitreten',
+    pendingShared: 'Dateien warten auf Freigabe',
     scanner: {
       title: 'Raum scannen',
       close: 'Schließen',

@@ -56,6 +56,10 @@ export interface AppState {
   textMessages: Map<string, TextMessageEntry>
   textExpiry: Map<string, ExpiryRuntime>
   pendingText: string | null
+
+  // ── PWA share target (Compartir → fAir Drop) ────────────────
+  /** Archivos llegados por share-target aún sin sala a la que enviarlos */
+  pendingShared: File[]
 }
 
 // Puertos que el store implementa para señalización WS
@@ -102,5 +106,7 @@ export function createAppState(): AppState {
     textMessages: new Map(),
     textExpiry: new Map(),
     pendingText: null,
+
+    pendingShared: [],
   }
 }

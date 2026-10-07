@@ -73,6 +73,11 @@ export default function Home({ state, actions }: { state: AppState; actions: Hom
             {t.home.reconnect} · {saved.code}
           </button>
         ) : null}
+        {state.pendingShared.length > 0 ? (
+          <p className="pending-shared">
+            {t.home.pendingShared} ({state.pendingShared.length})
+          </p>
+        ) : null}
         <div className="divider" role="separator">
           <span>{t.home.or}</span>
         </div>
