@@ -127,8 +127,16 @@ export default function Room({
         setPasteError(t.room.pasteEmpty)
         return
       }
-    } catch {
-      // read() no siempre está permitido; caemos a readText
+    } catch (e) {
+      // Android Chrome: read() rechaza con NotAllowedError aunque el
+      // portapapeles tenga una imagen (no soporta leer imágenes). En ese
+      // caso NO caemos a readText: pegaría texto viejo engañoso — mostramos
+      // el error de permiso y el usuario usa Compartir/Seleccionar archivos.
+      if (e instanceof DOMException && e.name === 'NotAllowedError') {
+        setPasteError(t.room.pasteDenied)
+        return
+      }
+      // otro fallo (NotSupported etc.): probamos readText
     }
     // 2) Fallback universal: solo texto
     try {
