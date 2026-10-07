@@ -27,7 +27,8 @@
     "@babel/core": "7.29.7",
     "@humanfs/node": "0.17.0",
     "baseline-browser-mapping": "2.11.27",
-    "browserslist": "4.29.3"
+    "browserslist": "4.29.3",
+    "proxy-addr": "2.0.8"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
