@@ -215,6 +215,39 @@ server.tool(
 )
 
 server.tool(
+  'fairdrop_wait_session',
+  'Bloquea hasta que la sesión alcance un estado terminal (sent/received = listo, closed/error/expired = terminó) o venza el timeout. Devuelve el mismo payload que fairdrop_session_status. Úsala en vez de sondear en bucle: el tiempo de espera consumido aquí NO gasta tokens del agente. Si expira sin estado terminal devuelve state "waiting" y puedes volver a llamar.',
+  {
+    room_code: z.string().min(4).max(4).describe('Código de sala de 4 caracteres'),
+    timeout_s: z.number().int().min(1).max(240).default(60)
+      .describe('Segundos máximos de espera (default 60; llamar de nuevo si devuelve waiting)'),
+  },
+  async ({ room_code, timeout_s }) => {
+    const code = room_code.toUpperCase()
+    const TERMINALES = new Set(['sent', 'received', 'closed', 'error', 'expired', 'not_found'])
+    const deadline = Date.now() + timeout_s * 1000
+    const captura = (s) => JSON.stringify(s
+      ? {
+          room_code: s.code,
+          state: s.state,
+          sent: s.sent,
+          received: s.received,
+          directory: s.directory,
+          error: s.error ?? null,
+          pending_descarga_usuario: s.state === 'sent',
+        }
+      : { room_code: code, state: 'not_found', note: 'La sesión no existe o ya se cerró/limpió' })
+    while (Date.now() < deadline) {
+      const s = sessions.get(code)
+      const sSnap = s && TERMINALES.has(s.state) ? captura(s) : (!s ? captura(null) : null)
+      if (sSnap) return { content: [{ type: 'text', text: sSnap }] }
+      await new Promise((r) => setTimeout(r, 1500))
+    }
+    return { content: [{ type: 'text', text: captura(sessions.get(code)) }] }
+  },
+)
+
+server.tool(
   'fairdrop_status',
   'Estado público del servidor fAir Drop: salas activas y clientes conectados (sin datos personales).',
   {},

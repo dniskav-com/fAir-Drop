@@ -40,6 +40,7 @@ de `mcp/index.js`. El transporte stdio no es una URL de MCP remoto.
 - `fairdrop_create_session`: enviar hasta diez archivos con rutas absolutas.
 - `fairdrop_receive_session`: crear una sala de recepción o unirse a una existente.
 - `fairdrop_session_status`: consultar estado y rutas de archivos recibidos.
+- `fairdrop_wait_session`: esperar bloqueado hasta que la sesión termine (sent/received/closed/error/expired) con timeout (1–240 s, `timeout_s`, default 60); devuelve el mismo payload que `session_status`. Preferir esta tool al bucle de polling: el agente no gasta tokens mientras espera. Si expira devuelve `state: waiting` y se puede volver a llamar.
 - `fairdrop_status`: consultar métricas públicas.
 
 Para recibir: crear sesión, mostrar el código al usuario y consultar el estado
