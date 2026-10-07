@@ -331,10 +331,30 @@ export default function Room({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    fileInputRef.current?.click()
+                    const input = fileInputRef.current
+                    if (!input) return
+                    input.removeAttribute('accept')
+                    input.click()
                   }}
                 >
                   {t.room.selectFiles}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const input = fileInputRef.current
+                    if (!input) return
+                    // En Android Chrome, accept="image/*" hace que el panel
+                    // de selección abra directo en Fotos/Galería — ahí la
+                    // captura reciente aparece primero (el portapapeles NO
+                    // expone imágenes a JS en este navegador).
+                    input.setAttribute('accept', 'image/*')
+                    input.click()
+                  }}
+                >
+                  {t.room.screenshot}
                 </button>
                 <button
                   className="btn btn-secondary"

@@ -46,6 +46,7 @@ const en: Translations = {
     paste: 'Paste',
     pasteDenied: 'Could not read the clipboard. Allow access and try again.',
     pasteEmpty: 'The clipboard is empty.',
+    screenshot: 'Screenshots/Photos',
     selectFiles: 'Select files',
     expiryOptions: 'Options',
     expiresIn: 'Expires in',

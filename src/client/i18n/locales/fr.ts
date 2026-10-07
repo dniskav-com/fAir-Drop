@@ -46,6 +46,7 @@ const fr: Translations = {
     paste: 'Coller',
     pasteDenied: "Impossible de lire le presse-papiers. Autorisez l'accès et réessayez.",
     pasteEmpty: 'Le presse-papiers est vide.',
+    screenshot: 'Captures/Photos',
     selectFiles: 'Sélectionner des fichiers',
     expiryOptions: 'Options',
     expiresIn: 'Expire dans',

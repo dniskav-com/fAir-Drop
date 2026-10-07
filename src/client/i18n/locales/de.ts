@@ -46,6 +46,7 @@ const de: Translations = {
     paste: 'Einfügen',
     pasteDenied: 'Zwischenablage konnte nicht gelesen werden. Zugriff erlauben und erneut versuchen.',
     pasteEmpty: 'Die Zwischenablage ist leer.',
+    screenshot: 'Screenshots/Fotos',
     selectFiles: 'Dateien auswählen',
     expiryOptions: 'Optionen',
     expiresIn: 'Läuft ab in',

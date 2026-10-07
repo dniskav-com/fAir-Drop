@@ -43,6 +43,7 @@ export interface Translations {
     paste: string
     pasteDenied: string
     pasteEmpty: string
+    screenshot: string
     selectFiles: string
     expiryOptions: string
     expiresIn: string

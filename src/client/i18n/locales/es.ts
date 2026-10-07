@@ -46,6 +46,7 @@ const es: Translations = {
     paste: 'Pegar',
     pasteDenied: 'No se pudo leer el portapapeles. Permite el acceso e inténtalo de nuevo.',
     pasteEmpty: 'El portapapeles está vacío.',
+    screenshot: 'Capturas/Fotos',
     selectFiles: 'Seleccionar archivos',
     expiryOptions: 'Opciones',
     expiresIn: 'Expira en',
