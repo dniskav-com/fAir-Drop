@@ -5,6 +5,7 @@ export interface Translations {
     tagline: string
     or: string
     scanQr: string
+    reconnect: string
     scanner: {
       title: string
       close: string
@@ -38,6 +39,9 @@ export interface Translations {
     dropFiles: string
     dropClick: string
     pasteOrDrop: string
+    paste: string
+    pasteDenied: string
+    pasteEmpty: string
     selectFiles: string
     expiryOptions: string
     expiresIn: string

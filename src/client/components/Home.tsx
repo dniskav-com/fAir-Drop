@@ -4,15 +4,18 @@ import BrandMark from './BrandMark'
 import RoomCodeInput from './RoomCodeInput'
 import { startQrScanner, stopQrScanner } from '../features/qr/application/qr-scanner'
 import { useTranslation } from '../i18n'
+import { getSavedSession, type SavedSession } from '../../core/store'
 
 type HomeActions = {
   createRoom(): void
   joinRoom(code: string): void
+  rejoinSaved(saved: SavedSession): void
 }
 
 export default function Home({ state, actions }: { state: AppState; actions: HomeActions }) {
   const { t } = useTranslation()
   const [code, setCode] = useState('')
+  const saved = getSavedSession()
 
   const dialogRef = useRef<HTMLDialogElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -61,6 +64,15 @@ export default function Home({ state, actions }: { state: AppState; actions: Hom
       </div>
 
       <form className="home-actions" onSubmit={onJoin} autoComplete="off">
+        {saved ? (
+          <button
+            className="btn btn-secondary rejoin-chip"
+            type="button"
+            onClick={() => actions.rejoinSaved(saved)}
+          >
+            {t.home.reconnect} · {saved.code}
+          </button>
+        ) : null}
         <div className="divider" role="separator">
           <span>{t.home.or}</span>
         </div>

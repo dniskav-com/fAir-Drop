@@ -22,7 +22,11 @@ export function connectWs(state: AppState, ports: AppPorts): WebSocket {
 
   ws.onerror = () => ports.showHomeError('Error de conexion con el servidor')
   ws.onclose = () => {
-    if (state.ws === ws) state.ws = null
+    const wasActive = state.ws === ws
+    if (wasActive) state.ws = null
+    // Notificar caída no intencionada (disconnect()/leaveRoom ya pusieron
+    // state.ws en null, así que ahí el catch entra: no se reconecta).
+    if (wasActive) ports.onClose?.()
   }
 
   return ws

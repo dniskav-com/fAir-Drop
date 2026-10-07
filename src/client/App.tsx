@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { FairDropStore } from '../core/store'
+import { FairDropStore, getSavedSession } from '../core/store'
 import type { ExpiryConfig } from '../core/store'
 import { useFairDrop } from './adapters/react/useFairDrop'
 import Home from './components/Home'
@@ -24,7 +24,15 @@ function AppInner() {
 
     const room = new URLSearchParams(location.search).get('room')
     if (room && /^[A-Z0-9]{4}$/i.test(room)) {
-      store.joinRoom(room.toUpperCase())
+      const code = room.toUpperCase()
+      const saved = getSavedSession()
+      // Si un creador recarga su propio link (?room=CODE), recupera su sala
+      // (reclaim) en lugar de entrar como invitado a su propia sala.
+      if (saved && saved.code === code && saved.role === 'creator') {
+        store.rejoinSaved(saved)
+      } else {
+        store.joinRoom(code)
+      }
     }
 
     const onUnload = () => store.disconnect()
@@ -72,6 +80,7 @@ function AppInner() {
         actions={{
           createRoom: () => store.createRoom(),
           joinRoom: (code: string) => store.joinRoom(code),
+          rejoinSaved: (saved) => store.rejoinSaved(saved),
         }}
       />
     </>

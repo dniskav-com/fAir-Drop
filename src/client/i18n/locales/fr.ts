@@ -7,6 +7,7 @@ const fr: Translations = {
     tagline: 'Transférez des fichiers directement entre vos appareils.',
     or: 'ou',
     scanQr: 'Scanner QR',
+    reconnect: 'Rejoindre la salle',
     scanner: {
       title: 'Scanner la salle',
       close: 'Fermer',
@@ -41,6 +42,9 @@ const fr: Translations = {
     dropFiles: 'Déposez les fichiers ici',
     dropClick: 'ou cliquez / collez ici',
     pasteOrDrop: 'Collez ou déposez des fichiers ici',
+    paste: 'Coller',
+    pasteDenied: "Impossible de lire le presse-papiers. Autorisez l'accès et réessayez.",
+    pasteEmpty: 'Le presse-papiers est vide.',
     selectFiles: 'Sélectionner des fichiers',
     expiryOptions: 'Options',
     expiresIn: 'Expire dans',

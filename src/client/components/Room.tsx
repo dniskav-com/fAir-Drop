@@ -46,6 +46,7 @@ export default function Room({
   const [copiedLink, setCopiedLink] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showExitModal, setShowExitModal] = useState(false)
+  const [pasteError, setPasteError] = useState<string | null>(null)
 
   const isConnected = state.connectionStatus === 'connected' || state.connectionStatus === 'relay'
   const hasFiles = state.incoming.size > 0 || state.fileUrls.size > 0 || state.fileMeta.size > 0
@@ -90,6 +91,57 @@ export default function Room({
     window.addEventListener('paste', handlePaste)
     return () => window.removeEventListener('paste', handlePaste)
   }, [sendSelected, actions.setPendingText])
+
+  // El evento "paste" no se dispara en móvil sin un campo de texto enfocado,
+  // así que en iOS/Android la única vía es el botón Pegar con la API async
+  // del portapapeles (requiere gesto del usuario + HTTPS).
+  async function pasteFromClipboard(): Promise<void> {
+    setPasteError(null)
+    // 1) Intento rico: imágenes y texto en un solo read()
+    try {
+      const items = await navigator.clipboard.read()
+      const files: File[] = []
+      let sawText = false
+      let hasText = false
+      for (const item of items) {
+        for (const type of item.types) {
+          if (type.startsWith('image/')) {
+            const blob = await item.getType(type)
+            files.push(new File([blob], `clipboard.${type.split('/')[1] || 'png'}`, { type }))
+          } else if (type === 'text/plain' && files.length === 0) {
+            sawText = true
+            const text = await (await item.getType(type)).text()
+            if (text.trim()) {
+              hasText = true
+              actions.setPendingText(text.trim())
+            }
+          }
+        }
+      }
+      if (files.length) {
+        void sendSelected(files)
+        return
+      }
+      if (sawText) {
+        if (hasText) return
+        setPasteError(t.room.pasteEmpty)
+        return
+      }
+    } catch {
+      // read() no siempre está permitido; caemos a readText
+    }
+    // 2) Fallback universal: solo texto
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text.trim()) {
+        actions.setPendingText(text.trim())
+        return
+      }
+      setPasteError(t.room.pasteEmpty)
+    } catch {
+      setPasteError(t.room.pasteDenied)
+    }
+  }
 
   async function copyCode() {
     if (!state.roomCode) return
@@ -276,6 +328,21 @@ export default function Room({
                 >
                   {t.room.selectFiles}
                 </button>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void pasteFromClipboard()
+                  }}
+                >
+                  {t.room.paste}
+                </button>
+                {pasteError ? (
+                  <p className="error-msg" role="status" aria-live="polite">
+                    {pasteError}
+                  </p>
+                ) : null}
                 <input
                   ref={fileInputRef}
                   type="file"

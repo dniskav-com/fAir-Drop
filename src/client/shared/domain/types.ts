@@ -66,6 +66,10 @@ export type SignalMessage =
   | { type: 'relay-meta'; payload: TransferMessage }
   | { type: 'relay-mode' }
   | { type: 'retry-p2p' }
+  | { type: 'reclaim-room'; code: string }
+  | { type: 'room-reclaimed'; code: string }
+  | { type: 'close-room' }
+  | { type: 'room-closed'; reason?: string }
   | { type: 'peer-disconnected' }
   | { type: 'kicked'; reason?: string }
   | { type: 'banned'; reason?: string }

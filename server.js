@@ -99,8 +99,13 @@ app.get('/api/qr', qrLimiter, async (req, res) => {
   }
 })
 
-// rooms: code -> { creator: ws, joiner: ws | null, createdAt, mode }
+// rooms: code -> { creator: ws | null, joiner: ws | null, createdAt, mode, graceUntil: number | null }
 const rooms = new Map()
+
+// Periodo de gracia tras perder la conexión del creador: la sala se conserva
+// y él puede recuperarla enviando "reclaim-room" con el código.
+// Env tunable para pruebas.
+const ROOM_GRACE_MS = Number(process.env.ROOM_GRACE_MS) || 3 * 60 * 1000
 
 // Meta por cliente: ws -> { ip, userAgent, connectedAt }
 const clients = new Map()
@@ -285,7 +290,7 @@ wss.on('connection', (ws, req) => {
         }
         wsRoomCount.set(normIp, roomCount)
         const code = generateCode()
-        rooms.set(code, { creator: ws, joiner: null, createdAt: new Date(), mode: 'p2p' })
+        rooms.set(code, { creator: ws, joiner: null, createdAt: new Date(), mode: 'p2p', graceUntil: null })
         console.log(`[ROOM] CREATED  ${code}  by ${normIp}`)
         send(ws, { type: 'room-created', code })
         send(ws, { type: 'client-info', self: peerSummary(clientInfo(ws)), peer: null })
@@ -300,32 +305,81 @@ wss.on('connection', (ws, req) => {
           send(ws, { type: 'error', message: 'Sala no encontrada' })
           return
         }
-        if (!room.creator || room.creator.readyState !== room.creator.OPEN) {
-          rooms.delete(code)
-          console.log(`[ROOM] JOIN FAIL  ${code}  creator gone  from ${normIp}`)
-          send(ws, { type: 'error', message: 'Sala no encontrada' })
-          return
-        }
-        if (room.joiner && room.joiner.readyState === room.joiner.OPEN) {
-          console.log(`[ROOM] JOIN FAIL  ${code}  full  from ${normIp}`)
-          send(ws, { type: 'error', message: 'Sala llena' })
-          return
+        if (room.creator && room.creator.readyState === room.creator.OPEN) {
+          // Sala "en vivo": flujo normal
+          if (room.joiner && room.joiner.readyState === room.joiner.OPEN) {
+            console.log(`[ROOM] JOIN FAIL  ${code}  full  from ${normIp}`)
+            send(ws, { type: 'error', message: 'Sala llena' })
+            return
+          }
+        } else {
+          // Sala huérfana (creador desconectado): solo unión dentro de la gracia
+          if (!room.graceUntil || Date.now() > room.graceUntil) {
+            rooms.delete(code)
+            console.log(`[ROOM] JOIN FAIL  ${code}  orphan expired  from ${normIp}`)
+            send(ws, { type: 'error', message: 'Sala no encontrada' })
+            return
+          }
+          if (room.joiner && room.joiner.readyState === room.joiner.OPEN) {
+            console.log(`[ROOM] JOIN FAIL  ${code}  orphan full  from ${normIp}`)
+            send(ws, { type: 'error', message: 'Sala llena' })
+            return
+          }
         }
         room.joiner = ws
         room.mode = 'p2p'
-        console.log(`[ROOM] JOINED  ${code}  by ${normIp}`)
+        console.log(`[ROOM] JOINED  ${code}  by ${normIp}${room.creator ? '  (live)' : '  (orphan, esperando reclaim)'}`)
         send(ws, { type: 'room-joined', code })
-        send(room.creator, { type: 'peer-joined' })
+        send(ws, { type: 'client-info', self: peerSummary(clientInfo(ws)), peer: peerSummary(room.creator ? clientInfo(room.creator) : { ip: '?', userAgent: '?', connectedAt: null }) })
+        if (room.creator && room.creator.readyState === room.creator.OPEN) {
+          send(room.creator, { type: 'peer-joined' })
 
-        // Enviar info mutua a ambos clientes (asegurar que ambos reciban self y peer)
-        const ci = clientInfo(room.creator)
-        const ji = clientInfo(ws)
-        // to joiner: self = joiner info, peer = creator info
-        send(ws, { type: 'client-info', self: peerSummary(ji), peer: peerSummary(ci) })
-        // to creator: self = creator info, peer = joiner info
-        send(room.creator, { type: 'client-info', self: peerSummary(ci), peer: peerSummary(ji) })
-        // Also send explicit peer-info to the creator for older clients
-        send(room.creator, { type: 'peer-info', peer: peerSummary(ji) })
+          // Enviar info mutua a ambos clientes (asegurar que ambos reciban self y peer)
+          const ci = clientInfo(room.creator)
+          const ji = clientInfo(ws)
+          // to creator: self = creator info, peer = joiner info
+          send(room.creator, { type: 'client-info', self: peerSummary(ci), peer: peerSummary(ji) })
+          // Also send explicit peer-info to the creator for older clients
+          send(room.creator, { type: 'peer-info', peer: peerSummary(ji) })
+        }
+        break
+      }
+
+      case 'reclaim-room': {
+        // El creador original regresa y retoma la sala con su código.
+        // El código actúa como capability: quien lo conoce reclama la sala.
+        const code = msg.code?.toUpperCase()
+        const room = rooms.get(code)
+        if (!room || room.creator || !room.graceUntil || Date.now() > room.graceUntil) {
+          console.log(`[ROOM] RECLAIM FAIL  ${code ?? '?'}  from ${normIp}`)
+          send(ws, { type: 'error', message: 'Sala no encontrada' })
+          return
+        }
+        room.creator = ws
+        room.graceUntil = null
+        room.mode = 'p2p'
+        console.log(`[ROOM] RECLAIMED  ${code}  by ${normIp}`)
+        send(ws, { type: 'room-reclaimed', code })
+        if (room.joiner && room.joiner.readyState === room.joiner.OPEN) {
+          const ci = clientInfo(ws)
+          const ji = clientInfo(room.joiner)
+          send(room.joiner, { type: 'client-info', self: peerSummary(ji), peer: peerSummary(ci) })
+          send(ws, { type: 'client-info', self: peerSummary(ci), peer: peerSummary(ji) })
+          // El creador reinicia la negociación WebRTC; el invitado responde a la oferta
+          send(ws, { type: 'peer-joined' })
+        } else {
+          send(ws, { type: 'client-info', self: peerSummary(clientInfo(ws)), peer: null })
+        }
+        break
+      }
+
+      case 'close-room': {
+        // Salida intencionada del creador (botón "Salir"): borra la sala de inmediato
+        const info = getPeer(ws)
+        if (info?.role !== 'creator') break
+        rooms.delete(info.code)
+        if (info.peer) send(info.peer, { type: 'room-closed', reason: 'El anfitrión cerró la sala.' })
+        console.log(`[ROOM] CLOSED  ${info.code}  by creator (${normIp})`)
         break
       }
 
@@ -397,13 +451,31 @@ wss.on('connection', (ws, req) => {
     const { code: roomCode, room, role, peer } = info
     if (peer) send(peer, { type: 'peer-disconnected' })
     if (role === 'creator') {
-      rooms.delete(roomCode)
+      // El creador pierde la conexión: la sala entra en periodo de gracia
+      // y puede ser recuperada ("reclaim-room"). El cliente que sale a
+      // propósito manda "close-room" antes de cerrar (borra la sala ya).
+      room.creator = null
+      room.graceUntil = Date.now() + ROOM_GRACE_MS
+      console.log(`[ROOM] GRACE  ${roomCode}  ${Math.round(ROOM_GRACE_MS / 1000)}s para que el creador reconecte`)
       return
     }
     room.joiner = null
     room.mode = 'p2p'
   })
 })
+
+// Janitor: limpia salas del periodo de gracia cuya ventana venció.
+setInterval(() => {
+  const now = Date.now()
+  for (const [code, room] of rooms.entries()) {
+    if (!room.graceUntil || now <= room.graceUntil) continue
+    rooms.delete(code)
+    if (room.joiner && room.joiner.readyState === room.joiner.OPEN) {
+      send(room.joiner, { type: 'room-closed', reason: 'La sala expiró: el anfitrión no regresó a tiempo.' })
+    }
+    console.log(`[ROOM] EXPIRED  ${code}  (grace period ended)`)
+  }
+}, 5000)
 
 const PORT = process.env.PORT || 3002
 server.listen(PORT, () => {

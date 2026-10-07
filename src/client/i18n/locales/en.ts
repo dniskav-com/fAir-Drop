@@ -7,6 +7,7 @@ const en: Translations = {
     tagline: 'Send files directly between your devices.',
     or: 'or',
     scanQr: 'Scan QR',
+    reconnect: 'Rejoin room',
     scanner: {
       title: 'Scan room',
       close: 'Close',
@@ -41,6 +42,9 @@ const en: Translations = {
     dropFiles: 'Drop files here',
     dropClick: 'or click / paste here',
     pasteOrDrop: 'Paste or drop files here',
+    paste: 'Paste',
+    pasteDenied: 'Could not read the clipboard. Allow access and try again.',
+    pasteEmpty: 'The clipboard is empty.',
     selectFiles: 'Select files',
     expiryOptions: 'Options',
     expiresIn: 'Expires in',

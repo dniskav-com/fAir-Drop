@@ -7,6 +7,7 @@ const es: Translations = {
     tagline: 'Pasa archivos directo entre tus dispositivos.',
     or: 'o',
     scanQr: 'Escanear QR',
+    reconnect: 'Volver a la sala',
     scanner: {
       title: 'Escanear sala',
       close: 'Cerrar',
@@ -41,6 +42,9 @@ const es: Translations = {
     dropFiles: 'Arrastra archivos aquí',
     dropClick: 'o haz clic / pega aquí',
     pasteOrDrop: 'Pega o arrastra archivos aquí',
+    paste: 'Pegar',
+    pasteDenied: 'No se pudo leer el portapapeles. Permite el acceso e inténtalo de nuevo.',
+    pasteEmpty: 'El portapapeles está vacío.',
     selectFiles: 'Seleccionar archivos',
     expiryOptions: 'Opciones',
     expiresIn: 'Expira en',

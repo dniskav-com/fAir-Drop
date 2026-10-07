@@ -7,6 +7,7 @@ const de: Translations = {
     tagline: 'Dateien direkt zwischen deinen Geräten übertragen.',
     or: 'oder',
     scanQr: 'QR scannen',
+    reconnect: 'Raum wieder beitreten',
     scanner: {
       title: 'Raum scannen',
       close: 'Schließen',
@@ -41,6 +42,9 @@ const de: Translations = {
     dropFiles: 'Dateien hier ablegen',
     dropClick: 'oder klicken / einfügen hier',
     pasteOrDrop: 'Dateien hier einfügen oder ablegen',
+    paste: 'Einfügen',
+    pasteDenied: 'Zwischenablage konnte nicht gelesen werden. Zugriff erlauben und erneut versuchen.',
+    pasteEmpty: 'Die Zwischenablage ist leer.',
     selectFiles: 'Dateien auswählen',
     expiryOptions: 'Optionen',
     expiresIn: 'Läuft ab in',

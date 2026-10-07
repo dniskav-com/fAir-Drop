@@ -10,7 +10,7 @@
  */
 
 import { createAppState } from '../client/app/state.js'
-import type { AppState } from '../client/app/state.js'
+import type { AppPorts, AppState } from '../client/app/state.js'
 import type {
   ConnectionStatus,
   ExpiryConfig,
@@ -48,6 +48,45 @@ import { showRoom, resetToHome } from '../client/features/rooms/application/room
 export type { AppState }
 export type { ExpiryConfig }
 
+// ── Sesión de sala persistente (reconexión entre recargas) ───────────────────
+// sessionStorage: sobrevive a recargas de la pestaña, muere al cerrarla.
+export interface SavedSession {
+  code: string
+  role: 'creator' | 'joiner'
+}
+
+const SESSION_KEY = 'fairdrop-session'
+
+function saveSession(session: SavedSession): void {
+  try {
+    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  } catch {
+    /* almacenamiento no disponible */
+  }
+}
+
+export function getSavedSession(): SavedSession | null {
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as SavedSession
+    if (typeof parsed?.code === 'string' && /^[A-Z0-9]{4}$/.test(parsed.code)) {
+      return { code: parsed.code.toUpperCase(), role: parsed.role === 'creator' ? 'creator' : 'joiner' }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function clearSession(): void {
+  try {
+    window.sessionStorage.removeItem(SESSION_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 export class FairDropStore {
   // _state es SIEMPRE la misma referencia. Los callbacks WebRTC asíncronos
   // (ondatachannel, onopen…) capturan esta referencia y pueden mutarla
@@ -60,6 +99,10 @@ export class FairDropStore {
   private _snap: Readonly<AppState> = this._state
 
   private _listeners = new Set<() => void>()
+
+  // Reconexión automática de sala
+  private _reconnectTimer: number | null = null
+  private _reconnectAttempts = 0
 
   // ── Lectura de estado ───────────────────────────────────────────────────────
 
@@ -84,8 +127,78 @@ export class FairDropStore {
   // Cierra el WebSocket limpiamente. Llamar en beforeunload para que el
   // servidor elimine la sala antes de que iOS/Android mantengan el socket vivo.
   disconnect(): void {
+    this.clearReconnectTimer()
     this._state.ws?.close()
     this._state.ws = null
+  }
+
+  // ── Reconexión automática de sala ───────────────────────────────────────────
+
+  private clearReconnectTimer(): void {
+    if (this._reconnectTimer !== null) {
+      window.clearTimeout(this._reconnectTimer)
+      this._reconnectTimer = null
+    }
+  }
+
+  private maxReconnectAttempts(): number {
+    // Debe caber dentro del periodo de gracia del servidor (~3 min)
+    return 12
+  }
+
+  // Llamado por ports.onClose: la conexión se cayó mientras estábamos en sala
+  private handleSocketDrop(): void {
+    const state = this._state
+    if (!state.roomCode) return // no estábamos en sala (home/leave)
+    if (this._reconnectTimer !== null) return // ya hay reintento en curso
+    this.scheduleReconnect(this.reconnectDelay())
+  }
+
+  private scheduleReconnect(delayMs: number): void {
+    const state = this._state
+    if (!state.roomCode) return
+    state.connectionStatus = 'disconnected'
+    state.pc?.close()
+    state.pc = null
+    state.dc = null
+    state.useRelay = false
+    state.relayRequested = false
+    this.notify()
+    this._reconnectTimer = window.setTimeout(() => {
+      this._reconnectTimer = null
+      if (!state.roomCode) return
+      this.attemptReconnect()
+    }, delayMs)
+  }
+
+  /**
+   * Reconectar con la misma sala: el creador envía "reclaim-room" y el
+   * invitado "join-room". Si la sala ya expiró, el servidor responde
+   * con error y el cliente vuelve al home (via handleSignal 'error').
+   */
+  private attemptReconnect(): void {
+    const state = this._state
+    const code = state.roomCode
+    if (!code || state.ws) return
+    this._reconnectAttempts++
+    if (this._reconnectAttempts > this.maxReconnectAttempts()) {
+      this.cleanup()
+      resetToHome(state, 'Se perdió la conexión con la sala y no se pudo reconectar.', this.notify)
+      return
+    }
+    const isCreator = state.isCreator
+    const ws = connectWs(state, this.makePorts())
+    ws.onopen = () => {
+      wsSend(
+        state,
+        isCreator ? { type: 'reclaim-room', code } : { type: 'join-room', code },
+      )
+    }
+  }
+
+  // Espaciado de reintentos: 1s, 2s, 3s ... máx 8s
+  private reconnectDelay(): number {
+    return Math.min(1000 * (this._reconnectAttempts + 1), 8000)
   }
 
   private setStatus(status: ConnectionStatus): void {
@@ -118,9 +231,8 @@ export class FairDropStore {
 
   // ── Sala ────────────────────────────────────────────────────────────────────
 
-  createRoom(): void {
-    this._state.isCreator = true
-    const ws = connectWs(this._state, {
+  private makePorts(): AppPorts {
+    return {
       onSignal: (msg) => this.handleSignal(msg),
       onRelayMeta: (msg) => {
         if (msg.type === 'text-inline') {
@@ -133,7 +245,14 @@ export class FairDropStore {
       },
       onBinaryChunk: (buf) => handleChunk(this._state, buf, this.notify),
       showHomeError: (msg) => this.showHomeError(msg),
-    })
+      onClose: () => this.handleSocketDrop(),
+    }
+  }
+
+  createRoom(): void {
+    this._reconnectAttempts = 0
+    this._state.isCreator = true
+    const ws = connectWs(this._state, this.makePorts())
     ws.onopen = () => wsSend(this._state, { type: 'create-room' })
   }
 
@@ -142,33 +261,46 @@ export class FairDropStore {
       this.showHomeError('El código debe tener 4 caracteres.')
       return
     }
+    this._reconnectAttempts = 0
     this._state.isCreator = false
-    const ws = connectWs(this._state, {
-      onSignal: (msg) => this.handleSignal(msg),
-      onRelayMeta: (msg) => {
-        if (msg.type === 'text-inline') {
-          handleTextMessage(this._state, msg as TextMessage, this.notify)
-        } else if (msg.type === 'text-deleted') {
-          deleteTextFeature(this._state, (msg as TextDeletedMessage).id, this.notify)
-        } else {
-          handleMetaMessage(this._state, msg, this.notify)
-        }
-      },
-      onBinaryChunk: (buf) => handleChunk(this._state, buf, this.notify),
-      showHomeError: (msg) => this.showHomeError(msg),
-    })
+    const ws = connectWs(this._state, this.makePorts())
     ws.onopen = () => wsSend(this._state, { type: 'join-room', code })
   }
 
+  /**
+   * Re-entrar a una sala guardada (sesión previa o URL con ?room=).
+   * El creador usa reclaim-room; el invitado join-room. Si la sala ya
+   * no existe, el servidor responde con error y se vuelve al home.
+   */
+  rejoinSaved(saved: SavedSession): void {
+    this._reconnectAttempts = 0
+    this._state.isCreator = saved.role === 'creator'
+    const ws = connectWs(this._state, this.makePorts())
+    ws.onopen = () => {
+      wsSend(
+        this._state,
+        saved.role === 'creator'
+          ? { type: 'reclaim-room', code: saved.code }
+          : { type: 'join-room', code: saved.code },
+      )
+    }
+  }
+
   leaveRoom(reason?: string): void {
-    // Close the WebSocket to notify the server and ensure the room is
-    // removed immediately (avoids zombie rooms on mobile reloads).
+    // Salida intencionada: avisar al servidor ANTES de cerrar para que
+    // borre la sala al instante (sin esperar el periodo de gracia).
+    if (this._state.isCreator) {
+      wsSend(this._state, { type: 'close-room' })
+    }
     this.disconnect()
     this.cleanup()
     resetToHome(this._state, reason, this.notify)
   }
 
   private cleanup(): void {
+    clearSession()
+    this.clearReconnectTimer()
+    this._reconnectAttempts = 0
     cleanupFiles(this._state, this.notify)
     this._state.textMessages.clear()
     this._state.textExpiry.forEach((t) => {
@@ -271,11 +403,22 @@ export class FairDropStore {
     switch (msg.type) {
       case 'room-created':
         showRoom(state, msg.code, true, this.notify)
+        this._reconnectAttempts = 0
+        saveSession({ code: msg.code, role: 'creator' })
         this.setStatus('waiting')
         break
 
       case 'room-joined':
         showRoom(state, msg.code, false, this.notify)
+        this._reconnectAttempts = 0
+        saveSession({ code: msg.code, role: 'joiner' })
+        this.setStatus('waiting')
+        break
+
+      case 'room-reclaimed':
+        showRoom(state, msg.code, true, this.notify)
+        this._reconnectAttempts = 0
+        saveSession({ code: msg.code, role: 'creator' })
         this.setStatus('waiting')
         break
 
@@ -341,8 +484,20 @@ export class FairDropStore {
         resetToHome(state, msg.reason ?? 'Has sido desconectado de la sala.', this.notify)
         break
 
+      case 'room-closed':
+        this.cleanup()
+        resetToHome(state, msg.reason ?? 'La sala se cerró.', this.notify)
+        break
+
       case 'error':
-        this.showHomeError(msg.message)
+        // Un error landing mientras estamos dentro de la sala (ej: la sala
+        // ya expiró al reconectar) debe devolvernos al home con el motivo.
+        if (state.screen === 'room') {
+          this.cleanup()
+          resetToHome(state, msg.message, this.notify)
+        } else {
+          this.showHomeError(msg.message)
+        }
         break
 
       case 'relay-meta':

@@ -64,6 +64,8 @@ export interface AppPorts {
   onRelayMeta(msg: TransferMessage): void
   onBinaryChunk(buffer: ArrayBuffer): void
   showHomeError(message: string): void
+  /** Llamado al caerse la conexión WS no solicitada (para reconexión) */
+  onClose?(): void
 }
 
 export function createAppState(): AppState {
