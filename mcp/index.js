@@ -1,5 +1,8 @@
-// fairdrop-mcp — Servidor MCP para que agentes de IA envíen archivos
-// desde este VPS a una persona vía fAir Drop (salas + relay WebSocket).
+#!/usr/bin/env node
+// fairdrop-mcp — Servidor MCP para que agentes de IA (en cualquier máquina,
+// con acceso al signaling de producción) envíen archivos a una persona vía
+// fAir Drop (salas + relay WebSocket). No necesita estar en el VPS: conecta
+// por WSS a fair-drop.dniskav.com.
 //
 // Corre por stdio (local). No expone ninguna superficie pública: habla con
 // el signaling de fAir Drop como un cliente más del protocolo WS.
@@ -19,7 +22,7 @@ const { z } = require('zod')
 const WebSocket = require('ws')
 
 const FAIRDROP_URL = process.env.FAIRDROP_URL || 'wss://fair-drop.dniskav.com/ws'
-const STATUS_URL = process.env.FAIRDROP_STATUS_URL || 'http://127.0.0.1:3002/api/status'
+const STATUS_URL = process.env.FAIRDROP_STATUS_URL || 'https://fair-drop.dniskav.com/api/status'
 
 const CHUNK_SIZE = 128 * 1024
 const WAIT_PEER_MS = 15 * 60 * 1000 // expira la sala si nadie entra en 15 min

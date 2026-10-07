@@ -31,8 +31,9 @@ archivo y el formato envolvente dependen del cliente):
 
 No requiere ejecutar el cliente dentro de este repositorio. El proceso debe
 tener Node.js, acceso de red al signaling y permisos sobre los archivos.
-En otro equipo, instala el repositorio y sus dependencias y sustituye la ruta.
-El transporte stdio no es una URL de MCP remoto.
+En otro equipo (sin VPS): clona el repo, instala dependencias de `mcp/`
+(`bun install` o `npm install`) y apunta `command`/`args` a la ruta local
+de `mcp/index.js`. El transporte stdio no es una URL de MCP remoto.
 
 ## Herramientas
 
@@ -47,4 +48,9 @@ hasta que `received` contenga los archivos. Recibir archivos no ejecuta su conte
 ## Variables opcionales
 
 - `FAIRDROP_URL`: signaling; por defecto `wss://fair-drop.dniskav.com/ws`.
-- `FAIRDROP_STATUS_URL`: métricas; por defecto `http://127.0.0.1:3002/api/status`.
+- `FAIRDROP_STATUS_URL`: métricas; por defecto `https://fair-drop.dniskav.com/api/status`.
+
+**Probado desde fuera del VPS (2026-10-07):** un agente ejecutando
+`mcp/index.js` en su propia máquina (solo Mac + Node + `bun install` en `mcp/`)
+creó una sesión con el signaling de producción, el usuario entró con el código
+desde el navegador y recibió el archivo; la sesión se cerró sola al entregar.
