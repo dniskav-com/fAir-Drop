@@ -37,15 +37,51 @@ function log(msg) {
 
 function cleanup(session) {
   if (session.timer) { clearTimeout(session.timer); session.timer = null }
+  if (session.channel) { try { session.channel.close() } catch {} session.channel = null; session.usingDC = false }
   if (session.ws) { try { session.ws.close() } catch {} session.ws = null }
   session.state = 'closed'
 }
 
+// P2P nativo: el emisor es el creador de la sala y lanza la offer.
+// Devuelve una promesa que resuelve true si el DataChannel abrió,
+// false si falló/timeout (el llamante envía entonces por relay WS).
+function startChannelCreator(session) {
+  let onOpenResolve
+  const opened = new Promise((res) => { onOpenResolve = res })
+  try {
+    const { initChannel } = require('./webrtc')
+    session.channel = initChannel({
+      role: 'creator',
+      onOpen: () => onOpenResolve(true),
+      onSend: (m) => { if (session.ws) session.ws.send(JSON.stringify(m)) },
+      onString: () => {},
+      onBinary: () => {},
+      onFail: () => {
+        if (session.channel) { try { session.channel.close() } catch {} }
+        session.channel = null
+        onOpenResolve(false)
+      },
+    })
+  } catch {
+    onOpenResolve(false)
+  }
+  return opened
+}
+
 function sendFileChunks(session, file) {
-  const buf = require('fs').readFileSync(file.path)
+  const sendMeta = (meta) => {
+    if (session.usingDC && session.channel && session.channel.open) session.channel.send(JSON.stringify(meta))
+    else session.ws.send(JSON.stringify({ type: 'relay-meta', payload: meta }))
+  }
+  const sendBin = (b) => {
+    if (session.usingDC && session.channel && session.channel.open) session.channel.sendBinary(b)
+    else session.ws.send(b, { binary: true })
+  }
+
+  const src = require('fs').readFileSync(file.path)
   const name = require('path').basename(file.path)
   const fileId = 'mcp-' + Date.now().toString(36) + '-' + (++session.seq)
-  const totalChunks = Math.ceil(buf.length / CHUNK_SIZE) || 1
+  const totalChunks = Math.ceil(src.length / CHUNK_SIZE) || 1
   const ext = name.split('.').pop().toLowerCase()
   const mimeMap = {
     html: 'text/html', md: 'text/markdown', txt: 'text/plain',
@@ -56,17 +92,9 @@ function sendFileChunks(session, file) {
   }
   const mime = mimeMap[ext] || 'application/octet-stream'
 
-  session.ws.send(JSON.stringify({
-    type: 'relay-meta',
-    payload: { type: 'file-start', fileId, name, size: buf.length, mimeType: mime, totalChunks },
-  }))
-  for (let i = 0; i < totalChunks; i++) {
-    session.ws.send(buf.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE), { binary: true })
-  }
-  session.ws.send(JSON.stringify({
-    type: 'relay-meta',
-    payload: { type: 'file-end', fileId },
-  }))
+  sendMeta({ type: 'file-start', fileId, name, size: src.length, mimeType: mime, totalChunks })
+  for (let i = 0; i < totalChunks; i++) sendBin(src.subarray(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE))
+  sendMeta({ type: 'file-end', fileId })
   session.sent.push({ name, size_bytes: buf.length, chunks: totalChunks })
 }
 
@@ -95,11 +123,24 @@ function openSession(session) {
         resolve()
       }
 
+      // Señalización entrante del par durante la sesión activa:
+      // la respuesta del invitado y sus candidatos alimentan al canal P2P.
+      if (msg.type === 'answer' || msg.type === 'ice-candidate') {
+        if (session.channel) session.channel.onSignal(msg)
+      }
+
       if (msg.type === 'peer-joined') {
         clearTimeout(session.timer)
         session.state = 'sending'
-        ws.send(JSON.stringify({ type: 'relay-mode' }))
-        await new Promise((r) => setTimeout(r, 600))
+        // 1) Intentar DataChannel WebRTC (offer del creador). onFail interno
+        // tras ~8 s resuelve false → relay por WS como siempre.
+        const p2p = await startChannelCreator(session)
+        session.usingDC = Boolean(p2p && session.channel && session.channel.open)
+        log('transporte: ' + (session.usingDC ? 'WebRTC P2P' : 'relay WS'))
+        if (!session.usingDC) {
+          ws.send(JSON.stringify({ type: 'relay-mode' }))
+          await new Promise((r) => setTimeout(r, 600))
+        }
         try {
           for (const file of session.files) sendFileChunks(session, file)
           session.state = 'sent'

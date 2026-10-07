@@ -8,8 +8,61 @@ function receiveSession({ url, directory, code, maxBytes = 512 * 1024 * 1024 }) 
   const destination = fs.mkdtempSync(path.join(path.resolve(directory), 'session-'))
   const session = { state: 'connecting', received: [], directory: destination, error: null }
   let active = null
+  let isCreator = false // true si esta sesión creó la sala (el par responde offers)
+  let channel = null // DataChannel WebRTC (node-datachannel), si hay P2P
   const ws = new WebSocket(url)
   let timer
+
+  // Un solo handler para chunks, vengan de WS o del DataChannel
+  const handleChunk = (data) => {
+    if (!active) throw new Error('Chunk sin archivo activo')
+    if (++active.chunks > active.totalChunks || active.bytes + data.length > active.size) throw new Error('Archivo supera los límites declarados')
+    let offset = 0
+    while (offset < data.length) offset += fs.writeSync(active.fd, data, offset, data.length - offset)
+    active.bytes += data.length
+  }
+  // Meta sin envelope ('relay-meta' del WS o string JSON del DC)
+  const handleMeta = (p) => {
+    if (p.type === 'file-start') {
+      if (active) throw new Error('Transferencias simultáneas no soportadas')
+      if (typeof p.name !== 'string' || p.name.includes('\0')) throw new Error('Nombre inválido')
+      const name = path.basename(p.name.replace(/\\/g, '/'))
+      if (!name || name === '.' || name === '..') throw new Error('Nombre inválido')
+      if (typeof p.fileId !== 'string' || !Number.isSafeInteger(p.size) || p.size < 0 || p.size > maxBytes || !Number.isSafeInteger(p.totalChunks) || p.totalChunks < 0 || p.totalChunks > Math.max(1, p.size)) throw new Error('Metadatos inválidos')
+      const target = path.join(destination, crypto.randomUUID() + '-' + name)
+      const partial = target + '.part'
+      active = { fd: fs.openSync(partial, 'wx', 0o600), partial, target, name, fileId: p.fileId, size: p.size, totalChunks: p.totalChunks, bytes: 0, chunks: 0 }
+      session.state = 'receiving'
+    }
+    if (p.type === 'file-end') {
+      if (!active || p.fileId !== active.fileId || active.bytes !== active.size || active.chunks !== active.totalChunks) throw new Error('Archivo incompleto')
+      fs.closeSync(active.fd)
+      fs.renameSync(active.partial, active.target)
+      session.received.push({ name: active.name, path: active.target, size_bytes: active.bytes })
+      active = null
+      session.state = 'received'
+    }
+  }
+  let fallbackTimer = null
+  const tryRelay = () => ws.send(JSON.stringify({ type: 'relay-mode' }))
+  // P2P nativo (node-datachannel). onOpen → listo para recibir por DC;
+  // onFail → canal cerrado y fallback a relay WS.
+  function startChannel(role) {
+    try {
+      const { initChannel } = require('./webrtc')
+      channel = initChannel({
+        role,
+        onOpen: () => { session.state = 'ready' },
+        onString: (str) => { try { handleMeta(JSON.parse(str)) } catch (err) { fail(err) } },
+        onBinary: handleChunk,
+        onSend: (m) => ws.send(JSON.stringify(m)),
+        onFail: () => { tryRelay() },
+      })
+    } catch {
+      channel = null
+      tryRelay()
+    }
+  }
   const discard = () => {
     if (!active) return
     fs.closeSync(active.fd)
@@ -36,11 +89,7 @@ function receiveSession({ url, directory, code, maxBytes = 512 * 1024 * 1024 }) 
     ws.on('message', (data, binary) => {
       try {
         if (binary) {
-          if (!active) throw new Error('Chunk sin archivo activo')
-          if (++active.chunks > active.totalChunks || active.bytes + data.length > active.size) throw new Error('Archivo supera los límites declarados')
-          let offset = 0
-          while (offset < data.length) offset += fs.writeSync(active.fd, data, offset, data.length - offset)
-          active.bytes += data.length
+          handleChunk(data)
           return
         }
         const msg = JSON.parse(data.toString())
@@ -48,35 +97,34 @@ function receiveSession({ url, directory, code, maxBytes = 512 * 1024 * 1024 }) 
         if (msg.type === 'room-created' || msg.type === 'room-joined') {
           session.code = msg.code
           session.state = 'waiting'
-          if (code) ws.send(JSON.stringify({ type: 'relay-mode' }))
+          isCreator = msg.type === 'room-created'
           resolve(session)
+          // Sin relay-mode anticipado: se espera la offer del creador (P2P).
+          // Compat: si en 4 s no llega offer, caemos a relay (TUI/MCP viejos)
+          clearTimeout(fallbackTimer)
+          fallbackTimer = setTimeout(() => { if (!channel || !channel.open) tryRelay() }, 4000)
         }
-        if (msg.type === 'peer-joined' || msg.type === 'offer') {
-          ws.send(JSON.stringify({ type: 'relay-mode' }))
+        if (msg.type === 'peer-joined' && isCreator) {
+          clearTimeout(fallbackTimer)
           session.state = 'ready'
+          if (!channel) startChannel('creator')
         }
-        if (msg.type === 'peer-disconnected') { discard(); session.state = 'waiting' }
+        if (msg.type === 'offer') {
+          clearTimeout(fallbackTimer)
+          session.state = 'ready'
+          if (!channel) startChannel('guest')
+          if (channel) channel.onSignal(msg)
+        }
+        if (msg.type === 'answer' || msg.type === 'ice-candidate') {
+          if (channel) channel.onSignal(msg)
+        }
+        if (msg.type === 'peer-disconnected') {
+          if (channel) { channel.close(); channel = null }
+          discard()
+          session.state = 'waiting'
+        }
         if (msg.type !== 'relay-meta') return
-        const p = msg.payload
-        if (p.type === 'file-start') {
-          if (active) throw new Error('Transferencias simultáneas no soportadas')
-          if (typeof p.name !== 'string' || p.name.includes('\0')) throw new Error('Nombre inválido')
-          const name = path.basename(p.name.replace(/\\/g, '/'))
-          if (!name || name === '.' || name === '..') throw new Error('Nombre inválido')
-          if (typeof p.fileId !== 'string' || !Number.isSafeInteger(p.size) || p.size < 0 || p.size > maxBytes || !Number.isSafeInteger(p.totalChunks) || p.totalChunks < 0 || p.totalChunks > Math.max(1, p.size)) throw new Error('Metadatos inválidos')
-          const target = path.join(destination, crypto.randomUUID() + '-' + name)
-          const partial = target + '.part'
-          active = { fd: fs.openSync(partial, 'wx', 0o600), partial, target, name, fileId: p.fileId, size: p.size, totalChunks: p.totalChunks, bytes: 0, chunks: 0 }
-          session.state = 'receiving'
-        }
-        if (p.type === 'file-end') {
-          if (!active || p.fileId !== active.fileId || active.bytes !== active.size || active.chunks !== active.totalChunks) throw new Error('Archivo incompleto')
-          fs.closeSync(active.fd)
-          fs.renameSync(active.partial, active.target)
-          session.received.push({ name: active.name, path: active.target, size_bytes: active.bytes })
-          active = null
-          session.state = 'received'
-        }
+        handleMeta(msg.payload)
       } catch (err) { fail(err) }
     })
   })
