@@ -15,7 +15,7 @@ async function fixture(t, bOptions = {}) {
   const a = new AgentManager(options), b = new AgentManager({ ...options, storeOptions: { ...options.storeOptions, projectDir: 'project-b', ...bOptions } })
   const managers = [a, b]
   t.after(async () => { for (const m of managers) m.shutdown(); await hub.close(); fs.rmSync(root, { recursive: true, force: true }) })
-  const created = await a.create({ alias: 'api' }), joined = await b.join({ invitation: created.invitation, alias: 'front' })
+  const created = await a.create({ pairing: 'invitation', alias: 'api' }), joined = await b.join({ invitation: created.invitation, alias: 'front' })
   const A = a.get(created.session_id), B = b.get(joined.session_id)
   await until(() => A.state === 'connected' && B.state === 'connected')
   return { hub, root, a, b, A, B, created, joined, options, managers }
@@ -140,7 +140,7 @@ test('wrong invitation secret fails authentication without delivering content', 
   const a = new AgentManager({ url: hub.url, storeOptions: { root, projectDir: 'a' }, transportOptions: { relayOnly: true } })
   const b = new AgentManager({ url: hub.url, storeOptions: { root, projectDir: 'b' }, transportOptions: { relayOnly: true } })
   t.after(async () => { a.shutdown(); b.shutdown(); await hub.close(); fs.rmSync(root, { recursive: true, force: true }) })
-  const created = await a.create({ alias: 'a' })
+  const created = await a.create({ pairing: 'invitation', alias: 'a' })
   const config = JSON.parse(Buffer.from(created.invitation.slice(18), 'base64url'))
   config.secret = crypto.randomBytes(32).toString('base64url')
   const token = 'fairdrop-agent:v1:' + Buffer.from(JSON.stringify(config)).toString('base64url')
@@ -155,7 +155,7 @@ test('legacy peer is rejected with unsupported_peer instead of sending agent mes
   const a = new AgentManager({ url: hub.url, storeOptions: { root }, transportOptions: { relayOnly: true, handshakeMs: 100 } })
   let ws
   t.after(async () => { ws?.terminate(); a.shutdown(); await hub.close(); fs.rmSync(root, { recursive: true, force: true }) })
-  const created = await a.create({ alias: 'a' }); const A = a.get(created.session_id)
+  const created = await a.create({ pairing: 'invitation', alias: 'a' }); const A = a.get(created.session_id)
   A.enqueue({ text: 'must not leak to legacy peer' })
   ws = new WebSocket(hub.url); await new Promise(r => ws.on('open', r))
   ws.send(JSON.stringify({ type: 'join-room', code: created.room_code }))

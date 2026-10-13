@@ -433,3 +433,14 @@ TUI/src/
 - El VPS NO guarda archivos ni fragmentos: solo signaling y relay.
 - Hashes por bloque y reanudación se dejan para otra fase (mcp/README.md).
   Los bloques se pedirían al emisor; no introducir persistencia en el VPS.
+
+### MCP 1.3.0: código corto de agentes
+
+`fairdrop_agent_create` devuelve por defecto `pairing_code` de ocho caracteres.
+El otro agente llama `fairdrop_agent_join({code, alias})` con los ocho; `room_code`
+de cuatro caracteres solo localiza la sala. El código dura diez minutos, permite
+cinco intentos persistidos y se consume al autenticar. SRP-6a (`fast-srp-hap`,
+3072 bits/SHA-512) negocia la clave fuerte para TLS 1.3 sin transmitir el PIN.
+La reconexión usa esa clave local, no reutiliza el código. Para compatibilidad
+1.2 existe `pairing: "invitation"` al crear y `invitation` al unirse.
+No requiere cambios ni almacenamiento adicional en el servidor de signaling.

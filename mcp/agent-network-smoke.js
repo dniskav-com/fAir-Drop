@@ -12,7 +12,7 @@ async function exchange(url, { relay = true } = {}) {
     api = await sdkPeer({ ...env, FAIRDROP_PROJECT_DIR: path.join(root, 'api') })
     frontend = await rawPeer({ ...env, FAIRDROP_PROJECT_DIR: path.join(root, 'frontend') })
     const a = await api.call('fairdrop_agent_create', { alias: 'api-network-test' })
-    const b = await frontend.call('fairdrop_agent_join', { invitation: a.invitation, alias: 'frontend-network-test' })
+    const b = await frontend.call('fairdrop_agent_join', { code: a.pairing_code, alias: 'frontend-network-test' })
     await until(async () => (await api.call('fairdrop_agent_status', { session_id: a.session_id })).state === 'connected', 20000)
     const waiting = frontend.call('fairdrop_agent_wait_message', { session_id: b.session_id, timeout_s: 10 })
     const details = { method: 'GET', path: '/users', response_example: { users: [] } }

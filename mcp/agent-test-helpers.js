@@ -32,6 +32,7 @@ async function broker() {
       }
       const room = rooms.get(ws.code)
       const peer = room?.[ws.role === 'host' ? 'guest' : 'host']
+      if (msg?.type === 'kick-peer' && ws.role === 'host') { send(peer, { type: 'kicked' }); peer?.close(); return }
       if (msg?.type === 'close-room') { rooms.delete(ws.code); send(peer, { type: 'room-closed' }); return }
       if (peer?.readyState === 1) peer.send(binary ? data : data.toString(), { binary })
     })

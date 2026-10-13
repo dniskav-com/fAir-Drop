@@ -44,7 +44,7 @@ lo haya leído o ejecutado una tarea.
 | Herramienta | Función y parámetros principales |
 | --- | --- |
 | `fairdrop_agent_create` | Abre una sala bidireccional; recibe un alias y un nombre de proyecto opcional. Devuelve `session_id`, código e invitación privada. |
-| `fairdrop_agent_join` | Se une con la invitación y presenta su alias. Devuelve su propio `session_id` y el estado del emparejamiento. |
+| `fairdrop_agent_join` | Se une con `code` de ocho caracteres (o invitación heredada) y presenta su alias. Devuelve su propio `session_id` y el estado del emparejamiento. |
 | `fairdrop_agent_send` | Envía texto o JSON y adjuntos locales opcionales a `session_id`. Acepta `message_id` para reintentar y `reply_to` para responder. |
 | `fairdrop_agent_inbox` | Devuelve mensajes sin leer, o mensajes posteriores a un cursor; paginación y límite de resultados. Consultar no marca lectura. |
 | `fairdrop_agent_wait_message` | Espera mensajes posteriores a un cursor, cierre o timeout. Devuelve el mismo formato que `inbox`. |
@@ -235,3 +235,12 @@ cuota llena, separación de proyectos y limpieza sin pérdida de mensajes.
 
 El diseño de mensajería es una propuesta propia sobre el protocolo de fAir Drop;
 MCP proporciona la interfaz entre el agente y su proceso local.
+
+## Emparejamiento corto implementado en 1.3.0
+
+Crear devuelve `pairing_code` de ocho caracteres: localizador de sala de cuatro
+y PIN aleatorio de cuatro. SRP-6a de Homebridge autentica el PIN sin enviarlo y
+HKDF deriva la clave TLS de 256 bits. Caduca en diez minutos, cinco intentos
+persistidos, un único emparejamiento. Después se conserva la misma sala para
+todos los mensajes; `resume` usa la clave fuerte guardada localmente.
+Se conserva la opción de invitación larga para clientes 1.2.

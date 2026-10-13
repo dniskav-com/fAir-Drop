@@ -2,7 +2,7 @@
 
 Source repository: [dniskav/fAir-Drop](https://github.com/dniskav/fAir-Drop).
 
-Version **1.2.0** adds persistent, encrypted agent-to-agent messaging.
+Version **1.3.0** adds eight-character pairing codes to persistent, encrypted agent-to-agent messaging.
 Use the npm configuration below or run from source. Both agents need this version
 to use the collaboration tools.
 
@@ -25,7 +25,7 @@ For clients that use `mcpServers`:
   "mcpServers": {
     "fairdrop": {
       "command": "npx",
-      "args": ["-y", "fairdrop-mcp@1.2.0"]
+      "args": ["-y", "fairdrop-mcp@1.3.0"]
     }
   }
 }
@@ -39,7 +39,7 @@ For VS Code, add the following to `.vscode/mcp.json`:
     "fairdrop": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "fairdrop-mcp@1.2.0"]
+      "args": ["-y", "fairdrop-mcp@1.3.0"]
     }
   }
 }
@@ -49,17 +49,17 @@ The first run downloads the package and its dependencies. Native WebRTC is
 optional: if it cannot be installed, transfers use WebSocket relay.
 Restart the client or start a new session after configuring the server.
 
-## Agent collaboration (1.2.0)
+## Agent collaboration (1.3.0)
 
 Keep **one room per collaboration**, with messages in both directions. Sending
 does not close it. Supports inline text, structured JSON, generated `.txt` or
 `.json` files, and up to ten attachments per message. Agent rooms are separate
-from the browser/file tools; both agent endpoints need version 1.2.0.
+from the browser/file tools; both agent endpoints need version 1.3.0 for short codes.
 
 | Tool | Purpose |
 | --- | --- |
-| `fairdrop_agent_create` | Create a persistent room and a private invitation. |
-| `fairdrop_agent_join` | Join with that invitation; returns this agent's local `session_id`. |
+| `fairdrop_agent_create` | Create a persistent room and an eight-character private `pairing_code`. |
+| `fairdrop_agent_join` | Join with `code: pairing_code`; returns this agent's local `session_id`. |
 | `fairdrop_agent_send` | Queue text, JSON or files; returns the message ID and its current delivery state. |
 | `fairdrop_agent_inbox` | See complete unread messages and local attachment paths. Does not mark reading. |
 | `fairdrop_agent_wait_message` | Wait for a message, closure or timeout; default 25 seconds, maximum 50. |
@@ -71,9 +71,14 @@ from the browser/file tools; both agent endpoints need version 1.2.0.
 ### API agent and frontend agent
 
 1. API agent calls `fairdrop_agent_create({"alias":"api-vps"})`.
-2. Pass its **private invitation** to the frontend agent through your existing
-   trusted conversation. The frontend calls `fairdrop_agent_join` with that
-   invitation and `alias: "frontend-local"`.
+2. Pass its **eight-character `pairing_code`** to the frontend agent, for example
+   “Conéctate por fAir Drop con el código ABCD1234”. The frontend calls
+   `fairdrop_agent_join({code: "ABCD1234", alias: "frontend-local"})`.
+   ABCD1234 is only an example; use the code returned by create.
+   Codes expire after ten minutes, permit five authentication attempts, and are
+   consumed after successful pairing. Four-character `room_code` locates the room
+   but cannot pair agents. Lowercase, spaces and hyphens are accepted.
+   Keep the creator MCP running while the other agent joins.
 3. Each uses its own local `session_id`. The frontend calls
    `fairdrop_agent_wait_message` while it needs the endpoint to proceed.
 4. API agent sends, using its session ID:
@@ -145,20 +150,27 @@ If a source file changes, send it with a new message ID.
 
 Agent rooms stay open while connected, even if no messages arrive. Default
 maximum lifetime is eight hours (`duration_s`, 60–86400 seconds); rooms without
-an authenticated peer expire after 15 minutes. Brief disconnects are allowed
+an authenticated peer expire after 15 minutes (short-code pairing expires after ten). Brief disconnects are allowed
 for two minutes. A restarted MCP can reclaim/join the original room only while
 the server retains it (currently creator grace is three minutes). An explicitly
 closed or expired conversation needs a new room. There is no offline VPS mailbox.
 
-TLS 1.3 with a random 256-bit pre-shared key authenticates and encrypts both
-messages and attachments end to end, over P2P or relay. Implemented through
-Node's maintained TLS/OpenSSL stack, with no custom cipher/handshake or new
-crypto dependency. The invitation contains the key; keep it private. The room
-code locates the room but does not authenticate a peer. TLS keys and message
+The eight-character code consists of a four-character room locator and a
+four-character random PIN. SRP-6a (3072-bit HomeKit parameters, SHA-512), using
+[Homebridge fast-srp](https://github.com/homebridge/fast-srp), authenticates the
+PIN without transmitting it and derives a 256-bit TLS PSK through HKDF-SHA256.
+Fresh nonces bind both roles, the room and lifetime to the exchange. TLS 1.3
+through Node/OpenSSL encrypts messages and attachments over P2P or relay.
+The host persists the five-attempt cap and ten-minute deadline locally; failed
+PINs leave it waiting for a retry. The code is consumed after authentication;
+reconnect/resume uses the stored strong key. Knowing the full code authorizes
+pairing, so keep it private. Legacy clients can use `agent_create` with
+`pairing: "invitation"` and `agent_join` with `invitation`; the long invitation
+contains a random key. The four-character room code alone cannot authenticate. TLS keys and message
 contents are never included in plaintext relay metadata or public metrics.
 Aliases/project labels are self-declared names, not independent identity proof.
 
-Inbox/outbox and invitations are stored **locally** with private permissions,
+Inbox/outbox and pairing credentials are stored **locally** with private permissions,
 atomic record replacement and fsync before delivery confirmation. The default
 root is `~/.local/share/fairdrop/agents`, scoped by the absolute project directory.
 Default quotas per conversation: 1,000 messages total, 64 MiB of body data and
@@ -387,7 +399,7 @@ MCP client on that same machine as follows:
   "mcpServers": {
     "fairdrop": {
       "command": "npx",
-      "args": ["-y", "fairdrop-mcp@1.2.0"],
+      "args": ["-y", "fairdrop-mcp@1.3.0"],
       "env": {
         "FAIRDROP_URL": "ws://127.0.0.1:3002/ws",
         "FAIRDROP_STATUS_URL": "http://127.0.0.1:3002/api/status"

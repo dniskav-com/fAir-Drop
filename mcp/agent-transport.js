@@ -1,12 +1,13 @@
 const { EventEmitter } = require('node:events')
 const crypto = require('node:crypto')
 const WebSocket = require('ws')
+const { Pairing } = require('./agent-pairing')
 const { secureStream } = require('./agent-secure-stream')
 
 class AgentTransport extends EventEmitter {
-  constructor({ meta, onCode, relayOnly = process.env.FAIRDROP_AGENT_RELAY_ONLY === '1', handshakeMs = 15000, reconnectMs = 120000 }) {
+  constructor({ meta, onCode, onPair = () => {}, onAttempt = () => {}, relayOnly = process.env.FAIRDROP_AGENT_RELAY_ONLY === '1', handshakeMs = 15000, reconnectMs = 120000 }) {
     super()
-    Object.assign(this, { meta, onCode, relayOnly, handshakeMs, reconnectMs })
+    Object.assign(this, { meta, onCode, onPair, onAttempt, relayOnly, handshakeMs, reconnectMs })
     this.state = 'offline'; this.mode = null; this.stopped = false; this.channel = null; this.secure = null
     this.nativeAvailable = false
     if (!relayOnly) { try { this.initChannel = require('./webrtc').initChannel; this.nativeAvailable = true } catch {} }
@@ -33,8 +34,9 @@ class AgentTransport extends EventEmitter {
             this.meta.code = msg.code; this.onCode(msg.code); this.setState('waiting_peer'); finish()
             if (this.meta.role === 'guest') this.announce()
           } else if (msg.type === 'peer-joined') {
-            this.resetPeer(); this.announce()
+            this.rejecting = false; this.resetPeer(); this.announce()
           } else if (msg.type === 'peer-disconnected') {
+            if (this.meta.pairing_pin && this.meta.role === 'creator') { this.rejecting = false; this.resetPeer(); this.setState('waiting_peer'); return }
             if (['authenticating', 'secure'].includes(this.state)) { this.fatal(new Error('authentication_failed: peer disconnected during authentication')); return }
             this.disconnectedAt ||= Date.now(); this.resetPeer(); this.setState('reconnecting')
           } else if (['room-closed', 'kicked', 'banned', 'error'].includes(msg.type)) {
@@ -62,12 +64,13 @@ class AgentTransport extends EventEmitter {
   }
   signal(msg) { if (this.ws?.readyState !== WebSocket.OPEN) throw new Error('Signaling connection is closed'); this.ws.send(JSON.stringify(msg)) }
   announce() {
-    this.ownHello ||= { type: 'agent-hello', version: 1, nonce: crypto.randomUUID(), transports: this.nativeAvailable ? ['p2p', 'relay'] : ['relay'] }
+    this.ownHello ||= { type: 'agent-hello', version: 1, nonce: crypto.randomUUID(), authentication: this.meta.pairing_pin ? 'srp6a' : 'tls-psk', transports: this.nativeAvailable ? ['p2p', 'relay'] : ['relay'] }
     this.signal({ type: 'relay-meta', payload: this.ownHello })
     if (!this.peerHello && !this.helloTimer) this.helloTimer = setTimeout(() => this.fatal(new Error('unsupported_peer: no agent handshake received')), this.handshakeMs)
   }
   control(p) {
-    if (!p || typeof p !== 'object') throw new Error('Invalid agent envelope')
+    if (this.rejecting) return
+    if (!p || typeof p !== 'object' || typeof p.type !== 'string') throw new Error('Invalid agent envelope')
     if (p.type === 'agent-hello') {
       if (p.version !== 1 || typeof p.nonce !== 'string' || p.nonce.length !== 36 || !Array.isArray(p.transports) || !p.transports.includes('relay')) throw new Error('unsupported_peer: incompatible agent protocol')
       const duplicate = this.peerHello?.nonce === p.nonce
@@ -78,9 +81,33 @@ class AgentTransport extends EventEmitter {
       if (duplicate || this.negotiating) return
       this.negotiating = true; this.setState('authenticating')
       this.authTimer = setTimeout(() => this.fatal(new Error('Agent authentication timed out')), this.handshakeMs + 8000)
-      if (this.nativeAvailable && p.transports.includes('p2p')) this.startNative()
-      else if (this.meta.role === 'creator') this.selectRelay()
+      if (p.authentication === 'srp6a' || this.meta.pairing_pin) {
+        if (!this.meta.pairing_pin || p.authentication !== 'srp6a') {
+          if (this.meta.role === 'creator' && p.authentication === 'srp6a') { this.rejectPairing(); return }
+          throw new Error('Pairing code already used or incompatible peer')
+        }
+        if (Date.now() >= this.meta.pairing_expires_at) throw new Error('Pairing code expired')
+        if (this.meta.role === 'creator') {
+          if ((this.meta.pairing_attempts || 0) >= 5) throw new Error('Pairing attempt limit reached')
+          this.meta.pairing_attempts = (this.meta.pairing_attempts || 0) + 1; this.onAttempt(this.meta.pairing_attempts)
+          this.pairing = new Pairing(this.meta, this.ownHello.nonce, p.nonce)
+          this.pairSignal(this.pairing.challenge())
+        }
+      } else this.negotiate()
+    } else if (p.type.startsWith('agent-pair-')) {
+      if (p.type === 'agent-pair-error') throw new Error('Pairing rejected: check code, expiry and attempt limit')
+      if (!this.meta.pairing_pin || !this.peerHello) throw new Error('Unexpected pairing message')
+      if (this.meta.role === 'guest' && p.type === 'agent-pair-challenge' && !this.pairing) {
+        this.pairing = new Pairing(this.meta, this.peerHello.nonce, this.ownHello.nonce)
+        this.pairSignal(this.pairing.answer(p))
+      } else if (this.meta.role === 'creator' && p.type === 'agent-pair-proof' && this.pairing) {
+        const confirmation = this.pairing.verify(p)
+        this.pairSignal(confirmation); this.finishPairing()
+      } else if (this.meta.role === 'guest' && p.type === 'agent-pair-confirm' && this.pairing) {
+        this.pairing.confirm(p); this.finishPairing()
+      } else throw new Error('Invalid pairing sequence')
     } else if (p.type === 'agent-transport') {
+      if (this.meta.pairing_pin) throw new Error('Transport before pairing')
       if (this.meta.role !== 'guest' || !this.peerHello || !['p2p', 'relay'].includes(p.mode) || typeof p.wire_id !== 'string' || p.wire_id.length !== 36) throw new Error('Invalid agent transport selection')
       if (p.wire_id === this.wireId) return
       this.resetSecure(); this.mode = p.mode; this.wireId = p.wire_id
@@ -91,6 +118,15 @@ class AgentTransport extends EventEmitter {
       if (this.mode !== 'relay' || !this.secure || typeof p.data !== 'string' || p.data.length > 87384 || !/^[A-Za-z0-9+/]*={0,2}$/.test(p.data)) throw new Error('Invalid encrypted transport data')
       this.secure.push(Buffer.from(p.data, 'base64'))
     } else throw new Error('unsupported_peer: peer is using a different protocol')
+  }
+  pairSignal(payload) { this.signal({ type: 'relay-meta', payload }) }
+  finishPairing() {
+    const config = this.pairing.config()
+    Object.assign(this.meta, config); this.onPair(config); this.pairing = null; this.negotiate()
+  }
+  negotiate() {
+    if (this.nativeAvailable && this.peerHello.transports.includes('p2p')) this.startNative()
+    else if (this.meta.role === 'creator') this.selectRelay()
   }
   startNative() {
     const generation = this.ownHello.nonce
@@ -121,12 +157,14 @@ class AgentTransport extends EventEmitter {
   }
   selectRelay() { this.closeNative(); this.select('relay') }
   select(mode) {
+    if (this.meta.pairing_pin) throw new Error('Transport before pairing')
     if (this.stopped || !this.peerHello) return
     this.resetSecure(); this.mode = mode; this.wireId = crypto.randomUUID()
     this.signal({ type: 'relay-meta', payload: { type: 'agent-transport', mode, wire_id: this.wireId } })
     this.startSecure()
   }
   startSecure() {
+    if (this.meta.pairing_pin) throw new Error('Encryption before pairing')
     if (this.secure || this.stopped) return
     this.setState('authenticating')
     const wireId = this.wireId
@@ -166,9 +204,16 @@ class AgentTransport extends EventEmitter {
   get bufferedAmount() { return (this.secure?.bufferedAmount || 0) + (this.ws?.bufferedAmount || 0) + (this.channel?.bufferedAmount || 0) }
   resetSecure() { const stream = this.secure; this.secure = null; this.wireId = null; stream?.close(); this.emit('reset') }
   closeNative() { const channel = this.channel; this.channel = null; channel?.close() }
-  resetPeer() { clearTimeout(this.helloTimer); clearTimeout(this.authTimer); this.helloTimer = null; this.resetSecure(); this.closeNative(); this.ownHello = null; this.peerHello = null; this.negotiating = false; this.mode = null }
+  resetPeer() { clearTimeout(this.helloTimer); clearTimeout(this.authTimer); this.helloTimer = null; this.pairing = null; this.resetSecure(); this.closeNative(); this.ownHello = null; this.peerHello = null; this.negotiating = false; this.mode = null }
   tick() { if (this.disconnectedAt && Date.now() - this.disconnectedAt > this.reconnectMs) this.fatal(new Error('Peer reconnect deadline expired')) }
-  fatal(err) { if (this.stopped) return; this.stop(); this.setState('error'); this.emit('failure', err) }
+  rejectPairing() {
+    this.pairSignal({ type: 'agent-pair-error' }); this.signal({ type: 'kick-peer' }); this.resetPeer(); this.rejecting = true; this.setState(this.meta.pairing_pin ? 'waiting_peer' : 'reconnecting')
+  }
+  fatal(err) { if (this.stopped) return;
+    if (this.meta.role === 'creator' && this.meta.pairing_pin && this.ws?.readyState === WebSocket.OPEN) {
+      this.rejectPairing(); return
+    }
+    this.stop(); this.setState('error'); this.emit('failure', err) }
   stop({ closeRoom = false } = {}) {
     this.stopped = true; clearTimeout(this.retryTimer)
     if (closeRoom && this.meta.role === 'creator' && this.ws?.readyState === WebSocket.OPEN) this.signal({ type: 'close-room' })

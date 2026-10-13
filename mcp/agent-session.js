@@ -22,7 +22,7 @@ class AgentSession extends EventEmitter {
     super()
     this.store = store; this.id = store.meta.session_id
     this.state = store.meta.closed ? 'closed' : 'offline'; this.error = null; this.peer = store.meta.peer || null
-    this.transport = new AgentTransport({ meta: { ...store.meta }, onCode: code => store.saveMeta({ code }), ...options })
+    this.transport = new AgentTransport({ meta: { ...store.meta }, onCode: code => store.saveMeta({ code }), onPair: config => store.saveMeta(config), onAttempt: pairing_attempts => store.saveMeta({ pairing_attempts }), ...options })
     this.transport.on('state', state => { if (!terminal.has(this.state) || state === 'connecting' || state === 'reconnecting') { this.state = state; this.emit('update') } })
     this.transport.on('secure', () => {
       this.identityTimer = setTimeout(() => this.fail(new Error('Peer identity handshake timed out')), 10000)
@@ -282,7 +282,7 @@ class AgentSession extends EventEmitter {
     if (!this.store.locked && this.store.isLocked()) return
     for (const m of this.store.outbox) if (m.state === 'pending' && now >= m.deadline) { this.store.put('outbox', { ...m, state: 'expired', error: 'Delivery deadline expired' }); if (this.tx?.id === m.message_id) this.tx.error = 'Delivery deadline expired'; this.emit('update') }
     if (terminal.has(this.state)) return
-    if (now >= this.store.meta.expires_at || (!this.peer && now - this.store.meta.created_at >= 15 * 60 * 1000)) { this.close(true, 'expired').catch(err => this.fail(err)); return }
+    if ((this.store.meta.pairing_pin && now >= this.store.meta.pairing_expires_at) || now >= this.store.meta.expires_at || (!this.peer && now - this.store.meta.created_at >= 15 * 60 * 1000)) { this.close(true, 'expired').catch(err => this.fail(err)); return }
     this.transport.tick()
   }
   async close(notify = true, state = 'closed') {

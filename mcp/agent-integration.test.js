@@ -22,7 +22,7 @@ for (const relay of [true, false]) {
         assert.ok(tool?.description && tool.inputSchema.type === 'object')
       }
       const created = await api.call('fairdrop_agent_create', { alias: 'api-vps', project: 'backend' })
-      const joined = await front.call('fairdrop_agent_join', { alias: 'frontend-local', invitation: created.invitation })
+      const joined = await front.call('fairdrop_agent_join', { alias: 'frontend-local', code: created.pairing_code })
       assert.notEqual(created.session_id, joined.session_id)
       await until(async () => (await api.call('fairdrop_agent_status', { session_id: created.session_id })).state === 'connected')
       const connected = await front.call('fairdrop_agent_status', { session_id: joined.session_id })
@@ -73,7 +73,7 @@ for (const relay of [true, false]) {
       // Raw relay envelopes contain neither shared secret nor message bodies.
       const captured = JSON.stringify(hub.captured)
       assert.ok(!captured.includes('api.example.test')); assert.ok(!captured.includes('The endpoint works'))
-      const invitationKey = JSON.parse(Buffer.from(created.invitation.slice(18), 'base64url')).secret
+      const invitationKey = created.pairing_code
       assert.ok(!captured.includes(invitationKey)); assert.ok(!api.stderr.includes(invitationKey)); assert.ok(!front.stderr.includes(invitationKey))
       const emptyWait = await front.call('fairdrop_agent_wait_message', { session_id: joined.session_id, cursor: b.next_cursor, timeout_s: 0.1 })
       assert.equal(emptyWait.timed_out, true); assert.deepEqual(emptyWait.messages, [])
