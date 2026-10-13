@@ -44,6 +44,7 @@ function initChannel({ role, onOpen, onString, onBinary, onSend, onFail }) {
 
   const pc = new nodeDatachannel.PeerConnection('fairdrop-' + role + '-' + Date.now(), {
     iceServers: ICE_SERVERS,
+    maxMessageSize: 256 * 1024,
   })
   pc.onLocalDescription((sdp, type) => {
     dlog(role, 'onLocalDescription', type)
@@ -55,7 +56,7 @@ function initChannel({ role, onOpen, onString, onBinary, onSend, onFail }) {
   })
   pc.onStateChange((state) => {
     dlog(role, 'pc state:', state)
-    if (state === 'failed' && !opened) {
+    if (state === 'failed' && !failed) {
       failed = true
       onFail('webrtc-failed')
     }
@@ -81,7 +82,9 @@ function initChannel({ role, onOpen, onString, onBinary, onSend, onFail }) {
     dlog(role, 'datachannel recibida/creada')
     ch = channel
     ch.onOpen(markOpen)
-    ch.onClosed(() => {})
+    ch.onClosed(() => {
+      if (!failed) { failed = true; onFail('datachannel-closed') }
+    })
     ch.onMessage((msg) => {
       if (typeof msg === 'string') onString(msg)
       else onBinary(Buffer.isBuffer(msg) ? msg : Buffer.from(msg))
@@ -117,11 +120,16 @@ function initChannel({ role, onOpen, onString, onBinary, onSend, onFail }) {
     get open() {
       return opened && !failed && !!ch
     },
+    get bufferedAmount() {
+      return ch ? ch.bufferedAmount() : 0
+    },
     send(str) {
-      if (opened && ch) ch.sendMessage(String(str))
+      if (!this.open) throw new Error('DataChannel no disponible')
+      ch.sendMessage(String(str))
     },
     sendBinary(buf) {
-      if (opened && ch) ch.sendMessageBinary(Buffer.isBuffer(buf) ? buf : Buffer.from(buf))
+      if (!this.open) throw new Error('DataChannel no disponible')
+      ch.sendMessageBinary(Buffer.isBuffer(buf) ? buf : Buffer.from(buf))
     },
     close() {
       clearTimeout(openTimer)

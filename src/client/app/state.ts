@@ -47,6 +47,7 @@ export interface AppState {
   clientsTimer: number | null
 
   // ── Transferencia ────────────────────────────────────────────
+  fileDisposers: Map<string, () => Promise<void>>
   fileUrls: Map<string, string>
   fileMeta: Map<string, { name: string; size?: number }>
   fileExpiry: Map<string, ExpiryRuntime>
@@ -98,6 +99,7 @@ export function createAppState(): AppState {
     peerInfo: null,
     clientsTimer: null,
 
+    fileDisposers: new Map(),
     fileUrls: new Map(),
     fileMeta: new Map(),
     fileExpiry: new Map(),

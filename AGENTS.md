@@ -325,22 +325,40 @@ Si necesitas ajustar los limites, busca `rateLimit` en `server.js`.
 ## MCP para agentes IA (`mcp/`)
 
 Servidor MCP que permite a cualquier agente (OpenCode, Claude, etc.) enviar
-archivos desde el VPS a una persona a través de fAir Drop, sin UI y sin
-nueva superficie pública. Habla el mismo protocolo de relay que la TUI
-(créate sala por WSS → `relay-mode` → `file-start` + chunks binarios 128 KB
-→ `file-end`) pero por stdio local.
+y recibir archivos desde cualquier máquina a través de fAir Drop, sin UI y
+sin nueva superficie pública. Corre por stdio local e intenta WebRTC P2P
+nativo; si no conecta en 8 s, usa el protocolo relay de la TUI con chunks
+de 128 KB.
 
 ```
 mcp/index.js      servidor MCP stdio (SDK @modelcontextprotocol/sdk)
-mcp/package.json  deps: ws, SDK, zod — instalar con `bun install`
+mcp/webrtc.js     WebRTC nativo (node-datachannel), fallback a relay
+mcp/receiver.js   recepción segura a ~/Downloads/fAir-Drop/session-*
+mcp/package.json  deps: ws, SDK, zod, node-datachannel — instalar en mcp/
 ```
 
 ### Tools expuestas
 
+Desde MCP 1.2.0 existe además comunicación entre agentes: `fairdrop_agent_create`,
+`join`, `send`, `inbox`, `wait_message`, `ack`, `status`, `resume`, `close` (todos
+con prefijo `fairdrop_agent_`). Una sola sala bidireccional por colaboración;
+no se cierra tras cada envío. `wait_message` devuelve automáticamente mensajes
+durante una tarea activa, pero no despierta un modelo inactivo.
+
+TLS 1.3 PSK con invitación privada cifra mensajes y adjuntos de extremo a extremo.
+Las bandejas se guardan solo en los equipos de los agentes, con permisos privados,
+cuotas y fsync. `FAIRDROP_PROJECT_DIR` separa historiales por proyecto; el VPS sigue
+sin guardar mensajes/chunks. No loguear invitaciones ni secretos. No confundir
+`delivered` (guardado remoto), `read` (ack explícito) y `replied` (respuesta recibida).
+Ver `mcp/README.md` para configuración entre arneses y `mcp/agent-*.test.js` para
+las pruebas. La versión npm 1.2.0 incluye estas herramientas.
+
 | Tool | Qué hace |
 |---|---|
 | `fairdrop_create_session` | Crea sala y devuelve el código AL INSTANTE (no espera al par). Recibe rutas absolutas (máx. 10). |
-| `fairdrop_session_status` | Estado de la sesión: connecting/waiting/sending/sent/closed/error. `sent` = en el navegador del usuario, pendiente de confirmar descarga. |
+| `fairdrop_receive_session` | Crea sala de recepción o se une a otra; devuelve rutas locales de archivos recibidos. |
+| `fairdrop_session_status` | Estado y archivos enviados/recibidos. `sent` confirma entrega al transporte, no descarga del usuario. |
+| `fairdrop_wait_session` | Espera hasta sent/received/closed/error/expired o timeout (1–240 s); devuelve el estado actual. |
 | `fairdrop_status` | Contadores públicos del servidor (salas, clientes, uptime). |
 
 ### Flujo recomendado para el agente
@@ -348,7 +366,7 @@ mcp/package.json  deps: ws, SDK, zod — instalar con `bun install`
 1. `fairdrop_create_session` con los archivos → obtener `room_code`
 2. Decirle al usuario: "entra en https://fair-drop.dniskav.com con el
    código XXXX y confirma las descargas"
-3. `fairdrop_session_status` hasta `state === "sent"`
+3. `fairdrop_wait_session` hasta `state === "sent"` (o un error)
 4. La sala expira sola: 15 min esperando par, 10 s de margen tras enviar
 
 ### Config en OpenCode (ya registrada, global)
@@ -359,7 +377,7 @@ mcp/package.json  deps: ws, SDK, zod — instalar con `bun install`
 ### Notas
 
 - Solo rutas absolutas; el agente debe tener criterio con datos sensibles
-  (el envío es al VPS-relay → navegador del usuario vía HTTPS/WSS).
+  (P2P directo o relay por el VPS según conectividad).
 - Sin persistencia: sesiones en memoria; expiran a los 15 min sin par.
 - Un bug ya corregido en este archivo: enviar `create-room` ANTES de que
   el WS abra (`readyState 0`) lanza "WebSocket is not open" — siempre
@@ -402,3 +420,16 @@ TUI/src/
   o renderizar HTML.
 - La API publica no debe exponer IPs/UA/codigos de sala sin token de admin.
 - Si se agregan endpoints, montarlos tras rate limit (patron `qrLimiter`).
+
+### Archivos grandes (2026-10-07)
+
+- Web y MCP leen fragmentos de 128 KiB; no cargar archivos completos en RAM.
+- Recibidores actualizados confirman escritura cada 8 fragmentos y recepción final.
+- MCP: límite por defecto 8 GiB, configurable con `FAIRDROP_MAX_FILE_BYTES`.
+- Web: mismo límite, configurable al build con `VITE_FAIRDROP_MAX_FILE_BYTES`.
+- Web recibe >64 MiB en OPFS local y ofrece descarga respaldada por disco.
+  HTTPS, cuota y espacio disponible siguen siendo necesarios; sin OPFS se rechazan
+  archivos grandes. Hasta 64 MiB se conserva el fallback en memoria.
+- El VPS NO guarda archivos ni fragmentos: solo signaling y relay.
+- Hashes por bloque y reanudación se dejan para otra fase (mcp/README.md).
+  Los bloques se pedirían al emisor; no introducir persistencia en el VPS.

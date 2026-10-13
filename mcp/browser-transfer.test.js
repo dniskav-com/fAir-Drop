@@ -1,0 +1,156 @@
+// Optional browser integration: PLAYWRIGHT_MODULE=/path/to/playwright
+// FAIRDROP_BROWSER_URL=http://127.0.0.1:3109 node --test mcp/browser-transfer.test.js
+// Run a local Vite UI and signaling server before invoking this test.
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+const crypto = require('node:crypto')
+async function digest(file) {
+  const hash = crypto.createHash('sha256')
+  for await (const chunk of fs.createReadStream(file)) hash.update(chunk)
+  return hash.digest('hex')
+}
+const enabled = !!process.env.PLAYWRIGHT_MODULE && !!process.env.FAIRDROP_BROWSER_URL
+for (const relay of [false, true]) {
+  test(`desktop web to mobile web: disk-backed reception over ${relay ? 'relay' : 'P2P'}`, { skip: !enabled, timeout: 180000 }, async () => {
+    const { chromium } = require(process.env.PLAYWRIGHT_MODULE)
+    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] })
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'fairdrop-browser-'))
+    const file = path.join(directory, 'large.apk')
+    const size = Number(process.env.FAIRDROP_TEST_BYTES || 96 * 1024 ** 2)
+    fs.closeSync(fs.openSync(file, 'w'))
+    fs.truncateSync(file, size)
+    const empty = path.join(directory, 'empty.txt')
+    fs.writeFileSync(empty, '')
+    const contexts = []
+    try {
+      const desktop = await chromium.launchPersistentContext(path.join(directory, 'desktop-profile'), { headless: true, args: ['--no-sandbox'], acceptDownloads: true })
+      const mobile = await chromium.launchPersistentContext(path.join(directory, 'mobile-profile'), { headless: true, args: ['--no-sandbox'], acceptDownloads: true, viewport: { width: 393, height: 851 }, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36' })
+      contexts.push(desktop, mobile)
+      const host = await desktop.newPage()
+      const guest = await mobile.newPage()
+      await Promise.all([host.goto(process.env.FAIRDROP_BROWSER_URL), guest.goto(process.env.FAIRDROP_BROWSER_URL)])
+      await host.waitForFunction(() => !!window.__fairdrop)
+      await guest.waitForFunction(() => !!window.__fairdrop)
+      await host.evaluate(() => window.__fairdrop.createRoom())
+      await host.waitForFunction(() => !!window.__fairdrop.getState().roomCode)
+      const code = await host.evaluate(() => window.__fairdrop.getState().roomCode)
+      await guest.evaluate(code => window.__fairdrop.joinRoom(code), code)
+      await Promise.all([host, guest].map(page => page.waitForFunction(() => window.__fairdrop.getState().dc?.readyState === 'open')))
+      if (relay) {
+        await Promise.all([host, guest].map(page => page.evaluate(() => { window.__fairdrop._state.useRelay = true; window.__fairdrop._state.connectionStatus = 'relay' })))
+      }
+      await host.locator('input[type="file"]').first().setInputFiles([file, empty])
+      await guest.waitForFunction(() => window.__fairdrop.getState().fileUrls.size === 2 || !!window.__fairdrop.getState().roomError, null, { timeout: 120000 })
+      const received = await guest.evaluate(() => { const s = window.__fairdrop.getState(); return { error: s.roomError, count: s.fileUrls.size, disposers: s.fileDisposers.size, incoming: s.incoming.size } })
+      assert.equal(received.error, null)
+      assert.equal(received.count, 2)
+      assert.equal(received.disposers, 2)
+      assert.equal(received.incoming, 0)
+      const downloadEvent = guest.waitForEvent('download')
+      await guest.locator('a[download="large.apk"]').click()
+      const download = await downloadEvent
+      assert.equal(await download.failure(), null)
+      const saved = path.join(directory, 'downloaded.apk')
+      await download.saveAs(saved)
+      assert.equal(fs.statSync(saved).size, size)
+      assert.equal(await digest(saved), await digest(file))
+      await guest.evaluate(() => { const s = window.__fairdrop.getState(); for (const id of [...s.fileUrls.keys()]) window.__fairdrop.deleteFile(id) })
+      await guest.waitForFunction(() => window.__fairdrop.getState().fileUrls.size === 0)
+      assert.equal(await guest.evaluate(() => window.__fairdrop.getState().fileDisposers.size), 0)
+    } finally {
+      for (const context of contexts) await context.close()
+      await browser.close()
+      fs.rmSync(directory, { recursive: true, force: true })
+    }
+  })
+}
+
+test('MCP and web exchange disk-backed files in both directions', { skip: !enabled || !process.env.FAIRDROP_TEST_WS_URL, timeout: 180000 }, async () => {
+  const { chromium } = require(process.env.PLAYWRIGHT_MODULE)
+  const { Client } = require('@modelcontextprotocol/sdk/client/index.js')
+  const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js')
+  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] })
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'fairdrop-mixed-'))
+  const source = path.join(directory, 'mixed.apk')
+  const size = 96 * 1024 ** 2
+  fs.closeSync(fs.openSync(source, 'w'))
+  fs.truncateSync(source, size)
+  const fd = fs.openSync(source, 'r+')
+  fs.writeSync(fd, Buffer.from('APK-header-test'), 0, 15, 0)
+  fs.writeSync(fd, Buffer.from('APK-footer-test'), 0, 15, size - 15)
+  fs.closeSync(fd)
+  const client = new Client({ name: 'mixed-transfer-test', version: '1' })
+  const transport = new StdioClientTransport({ command: process.execPath, args: [path.join(__dirname, 'index.js')], env: { ...process.env, FAIRDROP_URL: process.env.FAIRDROP_TEST_WS_URL, FAIRDROP_RECEIVE_DIR: directory }, stderr: 'pipe' })
+  let logs = ''
+  transport.stderr.on('data', raw => { logs += raw.toString() })
+  const call = async (name, args) => {
+    const result = await client.callTool({ name, arguments: args })
+    assert.ok(!result.isError, JSON.stringify(result))
+    return JSON.parse(result.content[0].text)
+  }
+  try {
+    await client.connect(transport)
+    const sending = await call('fairdrop_create_session', { files: [source] })
+    const context = await browser.newContext({ acceptDownloads: true })
+    const page = await context.newPage()
+    await page.goto(`${process.env.FAIRDROP_BROWSER_URL}/?room=${sending.room_code}`)
+    const sent = await call('fairdrop_wait_session', { room_code: sending.room_code, timeout_s: 60 })
+    assert.equal(sent.state, 'sent', JSON.stringify(sent))
+    assert.equal(sent.sent[0].receiver_confirmed, true)
+    await page.waitForFunction(() => window.__fairdrop.getState().fileUrls.size === 1)
+    const downloading = page.waitForEvent('download')
+    await page.locator('a[download="mixed.apk"]').click()
+    const download = await downloading
+    const target = path.join(directory, 'web-received.apk')
+    await download.saveAs(target)
+    assert.equal(await digest(target), await digest(source))
+    await page.evaluate(() => { const s = window.__fairdrop.getState(); for (const id of [...s.fileUrls.keys()]) window.__fairdrop.deleteFile(id) })
+    await context.close()
+    const receiving = await call('fairdrop_receive_session', {})
+    const other = await browser.newContext()
+    const sender = await other.newPage()
+    await sender.goto(`${process.env.FAIRDROP_BROWSER_URL}/?room=${receiving.room_code}`)
+    await sender.waitForFunction(() => window.__fairdrop.getState().dc?.readyState === 'open')
+    await sender.locator('input[type="file"]').first().setInputFiles(source)
+    const received = await call('fairdrop_wait_session', { room_code: receiving.room_code, timeout_s: 60 })
+    assert.equal(received.state, 'received', JSON.stringify(received))
+    assert.equal(received.received[0].size_bytes, size)
+    assert.equal(await digest(received.received[0].path), await digest(source))
+    assert.match(logs, /transporte: WebRTC P2P/)
+    await other.close()
+  } finally {
+    await client.close()
+    await browser.close()
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('unsupported disk storage rejects a large file before sending its contents', { skip: !enabled, timeout: 30000 }, async () => {
+  const { chromium } = require(process.env.PLAYWRIGHT_MODULE)
+  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] })
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'fairdrop-no-storage-'))
+  const file = path.join(directory, 'large.apk')
+  fs.closeSync(fs.openSync(file, 'w'))
+  fs.truncateSync(file, 96 * 1024 ** 2)
+  try {
+    const host = await browser.newPage()
+    const guest = await browser.newPage()
+    await Promise.all([host.goto(process.env.FAIRDROP_BROWSER_URL), guest.goto(process.env.FAIRDROP_BROWSER_URL)])
+    await Promise.all([host, guest].map(page => page.waitForFunction(() => !!window.__fairdrop)))
+    await guest.evaluate(() => Object.defineProperty(navigator.storage, 'getDirectory', { value: undefined }))
+    await host.evaluate(() => window.__fairdrop.createRoom())
+    await host.waitForFunction(() => !!window.__fairdrop.getState().roomCode)
+    const code = await host.evaluate(() => window.__fairdrop.getState().roomCode)
+    await guest.evaluate(code => window.__fairdrop.joinRoom(code), code)
+    await Promise.all([host, guest].map(page => page.waitForFunction(() => window.__fairdrop.getState().dc?.readyState === 'open')))
+    await host.locator('input[type="file"]').first().setInputFiles(file)
+    await host.waitForFunction(() => !!window.__fairdrop.getState().roomError && !window.__fairdrop.getState().incoming.size)
+    const status = await guest.evaluate(() => { const s = window.__fairdrop.getState(); return { error: s.roomError, incoming: s.incoming.size, files: s.fileUrls.size } })
+    assert.match(status.error, /almacenamiento/)
+    assert.equal(status.incoming, 0)
+    assert.equal(status.files, 0)
+  } finally { await browser.close(); fs.rmSync(directory, { recursive: true, force: true }) }
+})

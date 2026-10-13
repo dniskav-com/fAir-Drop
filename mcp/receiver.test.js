@@ -6,6 +6,32 @@ const path = require('node:path')
 const { WebSocketServer } = require('ws')
 const { receiveSession } = require('./receiver')
 
+test('room-closed closes reception and discards an incomplete file immediately', async () => {
+  const server = new WebSocketServer({ port: 0, host: '127.0.0.1' })
+  await new Promise(r => server.on('listening', r))
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'fairdrop-close-'))
+  server.on('connection', ws => ws.on('message', raw => {
+    if (JSON.parse(raw).type !== 'create-room') return
+    ws.send(JSON.stringify({ type: 'room-created', code: 'TEST' }))
+    ws.send(JSON.stringify({ type: 'relay-meta', payload: { type: 'file-start', fileId: '1', name: 'partial.txt', size: 3, totalChunks: 1 } }))
+    ws.send(Buffer.from('a'))
+    ws.send(JSON.stringify({ type: 'room-closed', reason: 'Host left' }))
+  }))
+  const session = receiveSession({ url: `ws://127.0.0.1:${server.address().port}`, directory })
+  try {
+    await session.ready
+    await new Promise(r => setTimeout(r, 100))
+    assert.equal(session.state, 'closed')
+    assert.ok(session.closedAt)
+    assert.deepEqual(fs.readdirSync(session.directory), [])
+    assert.deepEqual(session.received, [])
+  } finally {
+    session.close()
+    await new Promise(r => server.close(r))
+    fs.rmSync(directory, { recursive: true })
+  }
+})
+
 test('receives files safely and rejects incomplete transfers', async () => {
   const server = new WebSocketServer({ port: 0, host: '127.0.0.1' })
   await new Promise(r => server.on('listening', r))

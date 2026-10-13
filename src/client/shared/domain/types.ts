@@ -20,6 +20,7 @@ export interface FileStartMessage {
   size: number
   mimeType: string
   totalChunks: number
+  flowControl?: boolean
   expiry?: ExpiryConfig
 }
 
@@ -52,7 +53,18 @@ export interface TextMessageEntry {
   direction: 'sending' | 'receiving'
 }
 
-export type TransferMessage = FileStartMessage | FileEndMessage | FileDeletedMessage | TextMessage | TextDeletedMessage
+export type FileReceiptMessage =
+  | { type: 'file-ready' | 'file-received'; fileId: string }
+  | { type: 'file-ack'; fileId: string; received: number }
+  | { type: 'file-error'; fileId: string; message: string }
+
+export interface ReceiveSink {
+  write(chunk: ArrayBuffer): Promise<void>
+  finish(): Promise<Blob>
+  dispose(): Promise<void>
+}
+
+export type TransferMessage = FileReceiptMessage | FileStartMessage | FileEndMessage | FileDeletedMessage | TextMessage | TextDeletedMessage
 
 export type SignalMessage =
   | { type: 'room-created'; code: string }
@@ -80,5 +92,14 @@ export interface IncomingFile {
   meta: FileStartMessage
   chunks: ArrayBuffer[]
   received: number
+  bytes?: number
+  pendingBytes?: number
+  queue?: Promise<void>
+  sink?: Promise<ReceiveSink>
+  finishing?: boolean
+  ready?: boolean
+  acked?: number
+  confirmed?: boolean
+  error?: string
   direction?: 'sending' | 'receiving'
 }

@@ -98,6 +98,8 @@ export class FairDropStore {
   // Así _state nunca se reemplaza y los closures siempre apuntan al objeto correcto.
   private _snap: Readonly<AppState> = this._state
 
+  private _sendQueue: Promise<void> = Promise.resolve()
+
   private _listeners = new Set<() => void>()
 
   // Reconexión automática de sala
@@ -128,6 +130,7 @@ export class FairDropStore {
   // servidor elimine la sala antes de que iOS/Android mantengan el socket vivo.
   disconnect(): void {
     this.clearReconnectTimer()
+    cleanupFiles(this._state, this.notify)
     this._state.ws?.close()
     this._state.ws = null
   }
@@ -329,7 +332,13 @@ export class FairDropStore {
   // ── Transferencia ───────────────────────────────────────────────────────────
 
   sendFiles(files: File[], expiry: ExpiryConfig | null = null): Promise<void> {
-    return sendFiles(this._state, files, expiry, this.notify, (msg) => this.showRoomError(msg))
+    const roomCode = this._state.roomCode
+    const task = this._sendQueue.then(async () => {
+      if (!roomCode || this._state.roomCode !== roomCode) return
+      await sendFiles(this._state, files, expiry, this.notify, (msg) => this.showRoomError(msg))
+    })
+    this._sendQueue = task.catch(() => undefined)
+    return task
   }
 
   /**

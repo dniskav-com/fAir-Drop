@@ -1,22 +1,58 @@
 {
   "name": "fairdrop-mcp",
-  "version": "1.0.0",
-  "description": "Servidor MCP para que agentes de IA envíen archivos desde el VPS a una persona vía fAir Drop (salas + relay)",
+  "version": "1.2.0",
+  "description": "Send and receive local files between AI agents and browsers with fAir Drop (WebRTC P2P with relay fallback)",
   "bin": {
     "fairdrop-mcp": "index.js"
   },
   "files": [
     "index.js",
     "receiver.js",
-    "README.md"
+    "webrtc.js",
+    "README.md",
+    "LICENSE",
+    "sender.js",
+    "transfer-config.js",
+    "session-registry.js",
+    "agent-tools.js",
+    "agent-session.js",
+    "agent-store.js",
+    "agent-transport.js",
+    "agent-secure-stream.js",
+    "file-receiver.js",
+    "AGENT-COMMUNICATION-PLAN.md"
   ],
   "main": "index.js",
   "type": "commonjs",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "node-datachannel": "^0.33.4",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "ws": "^8.22.0",
     "zod": "^4.3.6"
+  },
+  "engines": {
+    "node": ">=18.20.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dniskav/fAir-Drop.git",
+    "directory": "mcp"
+  },
+  "homepage": "https://github.com/dniskav/fAir-Drop/tree/main/mcp",
+  "bugs": {
+    "url": "https://github.com/dniskav/fAir-Drop/issues"
+  },
+  "keywords": [
+    "mcp",
+    "file-transfer",
+    "webrtc",
+    "ai-agents",
+    "fairdrop"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "optionalDependencies": {
+    "node-datachannel": "^0.33.4"
   }
 }

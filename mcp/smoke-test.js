@@ -13,10 +13,10 @@ async function main() {
   try {
     await client.connect(transport)
     const { tools } = await client.listTools()
-    for (const name of ['fairdrop_create_session', 'fairdrop_receive_session', 'fairdrop_session_status', 'fairdrop_status']) {
+    for (const name of ['fairdrop_create_session', 'fairdrop_receive_session', 'fairdrop_session_status', 'fairdrop_wait_session', 'fairdrop_status', ...['create', 'join', 'send', 'inbox', 'wait_message', 'ack', 'status', 'resume', 'close'].map(name => 'fairdrop_agent_' + name)]) {
       assert.ok(tools.some(tool => tool.name === name), `Missing tool: ${name}`)
     }
-    console.log('OK: MCP iniciado desde /tmp; herramientas de envío y recepción disponibles')
+    console.log('OK: MCP iniciado desde /tmp; 14 herramientas de archivos y colaboración disponibles')
   } finally {
     await client.close()
   }
