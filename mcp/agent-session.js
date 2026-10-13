@@ -13,6 +13,7 @@ const descriptor = z.object({ name: z.string().min(1).max(240), size_bytes: z.nu
 const messageSchema = z.object({ type: z.literal('agent-message'), version: z.literal(1), message_id: id, kind: z.string().min(1).max(64), body: z.record(z.string(), z.unknown()), reply_to: id.optional(), attachments: z.array(descriptor).max(10) }).strict()
 const helloSchema = z.object({ type: z.literal('agent-identity'), version: z.literal(1), conversation_id: id, endpoint_id: id, role: z.enum(['creator', 'guest']), alias: z.string().min(1).max(80), project: z.string().max(120).optional() }).strict()
 const fingerprint = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex')
+const { notice } = require('./agent-notice')
 const terminal = new Set(['closed', 'error', 'expired', 'offline'])
 
 function wireMessage(m) { return { type: 'agent-message', version: 1, message_id: m.message_id, kind: m.kind, body: m.body, ...(m.reply_to ? { reply_to: m.reply_to } : {}), attachments: m.attachments.map(({ name, size_bytes }) => ({ name, size_bytes })) } }
@@ -34,13 +35,22 @@ class AgentSession extends EventEmitter {
     })
     this.transport.on('reset', () => { clearTimeout(this.identityTimer); this.discardIncoming(); if (this.tx) this.tx.error = 'Connection interrupted'; if (this.senderContext?.flow) this.senderContext.flow.error = 'Connection interrupted' })
     this.transport.on('failure', err => this.fail(err))
+    this.transport.on('disconnect', details => { this.store.saveMeta({ last_disconnect: details }); this.emit('update') })
   }
-  async open() {
+  open() {
+    if (this.opening) return this.opening
+    this.opening = this.openOnce().finally(() => { this.opening = null })
+    return this.opening
+  }
+  async openOnce() {
     if (this.store.meta.closed) throw new Error('Session was explicitly closed; create a new conversation')
     if (Date.now() >= this.store.meta.expires_at) throw new Error('Session expired')
-    this.store.claim()
+    if (!this.store.locked) this.store.claim()
     try { await this.transport.connect() }
-    catch (err) { this.fail(err); throw err }
+    catch (err) {
+      if (!this.transport.stopped && this.store.meta.code) { this.state = 'reconnecting'; this.emit('update'); return }
+      this.fail(err); throw err
+    }
   }
   sendControl(msg) { this.transport.send(1, msg) }
   receive(p) {
@@ -55,6 +65,7 @@ class AgentSession extends EventEmitter {
       this.transport.setState('connected'); this.state = 'connected'; this.emit('update')
       // Replay durable receipts after reconnect/restart, including explicit reads.
       for (const m of this.store.inbox) this.receipt(m.message_id, m.read ? 'read' : 'delivered')
+      for (const m of this.store.inbox) if (!m.read) this.notifyMessage(m)
       this.pump()
       return
     }
@@ -69,7 +80,7 @@ class AgentSession extends EventEmitter {
           const original = this.store.outbox.find(item => item.message_id === m.reply_to)
           if (original) this.store.put('outbox', { ...original, state: 'replied', replied: true, replied_at: m.received_at })
         }
-        this.discardIncoming(); this.receipt(m.message_id, 'delivered'); this.emit('update')
+        this.notifyMessage(m); this.discardIncoming(); this.receipt(m.message_id, 'delivered'); this.emit('update')
       } catch (err) { this.rejectIncoming(p.message_id, err) }
       return
     }
@@ -245,10 +256,10 @@ class AgentSession extends EventEmitter {
       if (messages.length && bytes + size > 128 * 1024) break
       messages.push(result); bytes += size
     }
-    return { session_id: this.id, state: this.state, messages, next_cursor: String(messages.at(-1)?.sequence ?? after), has_more: selected.length > messages.length, error: this.error }
+    return { session_id: this.id, state: this.state, ...this.connectionStatus(), messages, next_cursor: String(messages.at(-1)?.sequence ?? after), has_more: selected.length > messages.length, error: this.error }
   }
   waitMessage(options = {}, signal) {
-    const ready = () => { const result = this.inbox(options); return result.messages.length || terminal.has(this.state) ? result : null }
+    const ready = () => { const result = this.inbox(options); return result.messages.length || terminal.has(this.state) ? { ...result, ...(this.state === 'offline' ? { outcome: 'offline', warning: 'Session offline; use agent_resume or wait_message tool to reconnect', retry_after_s: 5 } : {}) } : null }
     const first = ready()
     if (signal?.aborted) return Promise.reject(new Error('Message wait cancelled'))
     if (first) return Promise.resolve({ ...first, timed_out: false })
@@ -274,8 +285,18 @@ class AgentSession extends EventEmitter {
     if (!m) throw new Error('Unknown sent message ID')
     return { message_id: m.message_id, state: m.state, error: m.error || null, delivered_at: m.delivered_at, read_at: m.read_at, replied_at: m.replied_at }
   }
+  notifyMessage(message) {
+    this.notified ||= new Set()
+    if (this.notified.has(message.message_id)) return
+    this.notified.add(message.message_id); this.emit('notice', notice(this.id, message))
+  }
+  connectionStatus() {
+    const connection_state = this.state
+    const needs_resume = this.state === 'offline' || (this.state === 'error' && this.store.meta.recoverable !== false)
+    return { connection_state, needs_resume, retry_after_s: this.state === 'reconnecting' ? Math.max(1, Math.ceil((this.transport.nextRetryAt - Date.now()) / 1000) || 1) : needs_resume ? 5 : null, last_disconnect: this.store.meta.last_disconnect || null }
+  }
   status(messageId) {
-    return { session_id: this.id, room_code: this.store.meta.code, state: this.state, transport: this.state === 'connected' ? this.transport.mode : null, encryption: 'TLSv1.3-PSK', peer: this.peer, unread: this.store.inbox.filter(m => !m.read).length, pending: this.store.outbox.filter(m => m.state === 'pending').length, expires_at: new Date(this.store.meta.expires_at).toISOString(), error: this.error, sent: messageId ? [this.messageStatus(messageId)] : this.store.outbox.slice(-20).map(m => this.messageStatus(m.message_id)) }
+    return { session_id: this.id, ...this.connectionStatus(), room_code: this.store.meta.code, state: this.state, transport: this.state === 'connected' ? this.transport.mode : null, encryption: 'TLSv1.3-PSK', peer: this.peer, unread: this.store.inbox.filter(m => !m.read).length, pending: this.store.outbox.filter(m => m.state === 'pending').length, expires_at: new Date(this.store.meta.expires_at).toISOString(), error: this.error, sent: messageId ? [this.messageStatus(messageId)] : this.store.outbox.slice(-20).map(m => this.messageStatus(m.message_id)) }
   }
   tick() {
     const now = Date.now()
@@ -298,7 +319,9 @@ class AgentSession extends EventEmitter {
   }
   fail(err) {
     if (this.state === 'closed' || this.state === 'expired' || (this.state === 'error' && this.error)) return
-    this.error = err.message; this.state = 'error'; this.transport.stop(); this.store.release(); this.closedAt = Date.now(); this.emit('update')
+    this.error = err.message; this.store.saveMeta({ recoverable: err.recoverable ?? !/authentication|identity|unsupported_peer|Invalid|expired|not found|not exist|no existe|cerr|kicked|banned|full|llena|reclaim|recuper/i.test(err.message) }); this.state = 'error'; this.transport.stop();
+    if (this.store.meta.recoverable === false) for (const message of this.store.outbox) if (message.state === 'pending') this.store.put('outbox', { ...message, state: 'failed', error: 'Terminal connection error: ' + err.message.slice(0, 300) })
+    this.store.release(); this.closedAt = Date.now(); this.emit('update')
   }
   detach() { this.state = 'offline'; this.transport.stop(); this.store.release(); this.emit('update') }
 }

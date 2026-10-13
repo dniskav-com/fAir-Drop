@@ -118,7 +118,7 @@ class SessionStore {
     const index = records.findIndex(m => m.message_id === message.message_id)
     if (index < 0) records.push(message)
     else records[index] = message
-    this.saveMeta()
+    this.saveMeta(direction === 'inbox' ? { inbox_sequence: Math.max(this.meta.inbox_sequence || 0, message.sequence || 0) } : {})
     return message
   }
   stage() { return fs.mkdtempSync(path.join(this.directory, 'staging', 'message-')) }

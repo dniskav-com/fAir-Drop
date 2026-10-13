@@ -444,3 +444,15 @@ cinco intentos persistidos y se consume al autenticar. SRP-6a (`fast-srp-hap`,
 La reconexión usa esa clave local, no reutiliza el código. Para compatibilidad
 1.2 existe `pairing: "invitation"` al crear y `invitation` al unirse.
 No requiere cambios ni almacenamiento adicional en el servidor de signaling.
+
+### MCP 1.4.0: reconexión y avisos
+
+`send`/`wait_message` recuperan sesiones offline válidas al usarlas; `status` e
+`inbox` consultan sin abrir red. Respuestas incluyen estado, advertencia de cola
+offline y último corte. Reintentos de red con backoff/jitter y plazo limitado.
+`fairdrop-mcp listen --session UUID --since SEQUENCE --project-dir PATH` lee
+solo avisos del inbox local, no abre otro WS ni marca read. El receptor MCP
+debe seguir vivo; el adaptador mantiene su cursor y deduplicación.
+`FAIRDROP_CLAUDE_CHANNEL=1` habilita una extensión opcional de Claude Channels,
+sin permission relay, que necesita opt-in del cliente y prueba real por versión.
+Autorrespuesta vía Monitor/Channels en el portátil aún no está verificada.

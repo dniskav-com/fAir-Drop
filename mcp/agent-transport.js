@@ -16,6 +16,7 @@ class AgentTransport extends EventEmitter {
   async connect() {
     if (this.ws?.readyState === WebSocket.OPEN) return
     this.stopped = false
+    clearTimeout(this.retryTimer)
     this.setState(this.meta.code ? 'reconnecting' : 'connecting')
     return new Promise((resolve, reject) => {
       const ws = this.ws = new WebSocket(this.meta.url, { maxPayload: 256 * 1024, handshakeTimeout: 10000 })
@@ -31,14 +32,14 @@ class AgentTransport extends EventEmitter {
           if (!msg || typeof msg !== 'object') throw new Error('Invalid signaling message')
           if (['room-created', 'room-reclaimed', 'room-joined'].includes(msg.type)) {
             if (!/^[A-Z0-9]{4}$/.test(msg.code)) throw new Error('Invalid room code')
-            this.meta.code = msg.code; this.onCode(msg.code); this.setState('waiting_peer'); finish()
+            this.retryAttempt = 0; this.nextRetryAt = null; this.meta.code = msg.code; this.onCode(msg.code); this.setState('waiting_peer'); finish()
             if (this.meta.role === 'guest') this.announce()
           } else if (msg.type === 'peer-joined') {
             this.rejecting = false; this.resetPeer(); this.announce()
           } else if (msg.type === 'peer-disconnected') {
             if (this.meta.pairing_pin && this.meta.role === 'creator') { this.rejecting = false; this.resetPeer(); this.setState('waiting_peer'); return }
-            if (['authenticating', 'secure'].includes(this.state)) { this.fatal(new Error('authentication_failed: peer disconnected during authentication')); return }
-            this.disconnectedAt ||= Date.now(); this.resetPeer(); this.setState('reconnecting')
+            if (['authenticating', 'secure'].includes(this.state)) { this.noteDisconnect('peer_disconnected_during_authentication'); this.fatal(new Error('authentication_failed: peer disconnected during authentication')); return }
+            this.noteDisconnect('peer_disconnected'); this.resetPeer(); this.setState('reconnecting')
           } else if (['room-closed', 'kicked', 'banned', 'error'].includes(msg.type)) {
             const err = new Error(msg.reason || msg.message || msg.type)
             finish(err); this.fatal(err)
@@ -51,16 +52,22 @@ class AgentTransport extends EventEmitter {
         } catch (err) { finish(err); this.fatal(err) }
       })
       ws.on('error', err => { finish(err); if (ws === this.ws && !this.stopped) this.emit('networkError', err) })
-      ws.on('close', () => {
+      ws.on('close', (code) => {
         finish(new Error('Signaling connection closed'))
         if (ws !== this.ws || this.stopped) return
-        this.disconnectedAt ||= Date.now(); this.resetPeer(); this.setState('reconnecting')
+        this.noteDisconnect('signaling_closed', code); this.resetPeer(); this.setState('reconnecting')
+        const delay = Math.min(10000, 500 * 2 ** Math.min(this.retryAttempt || 0, 5)) * (0.75 + Math.random() * 0.5)
+        this.retryAttempt = (this.retryAttempt || 0) + 1; this.nextRetryAt = Date.now() + delay
         this.retryTimer = setTimeout(() => {
           if (this.stopped) return
           this.connect().catch(() => {})
-        }, 500)
+        }, delay)
       })
     })
+  }
+  noteDisconnect(reason, code) {
+    this.disconnectedAt ||= Date.now()
+    this.emit('disconnect', { at: new Date().toISOString(), reason, ...(code !== undefined ? { websocket_code: code } : {}) })
   }
   signal(msg) { if (this.ws?.readyState !== WebSocket.OPEN) throw new Error('Signaling connection is closed'); this.ws.send(JSON.stringify(msg)) }
   announce() {
@@ -213,7 +220,7 @@ class AgentTransport extends EventEmitter {
     if (this.meta.role === 'creator' && this.meta.pairing_pin && this.ws?.readyState === WebSocket.OPEN) {
       this.rejectPairing(); return
     }
-    this.stop(); this.setState('error'); this.emit('failure', err) }
+    err.recoverable = false; this.stop(); this.setState('error'); this.emit('failure', err) }
   stop({ closeRoom = false } = {}) {
     this.stopped = true; clearTimeout(this.retryTimer)
     if (closeRoom && this.meta.role === 'creator' && this.ws?.readyState === WebSocket.OPEN) this.signal({ type: 'close-room' })

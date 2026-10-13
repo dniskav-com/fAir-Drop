@@ -244,3 +244,13 @@ HKDF deriva la clave TLS de 256 bits. Caduca en diez minutos, cinco intentos
 persistidos, un único emparejamiento. Después se conserva la misma sala para
 todos los mensajes; `resume` usa la clave fuerte guardada localmente.
 Se conserva la opción de invitación larga para clientes 1.2.
+
+## Recuperación y avisos implementados en 1.4.0
+
+Operaciones send/wait recuperan sesiones offline al usarlas; consultas
+status/inbox no abren red. Estado y cola offline explícitos, apertura compartida
+y reintentos con backoff, más motivo/fecha del último corte. CLI listen lee
+inbox durable sin otro WS ni ack. Adaptador opcional claude/channel usa aviso
+sin cuerpo ni secretos; cliente debe habilitarlo. Pruebas de protocolo y
+recuperación pasan; activación real de turnos con Monitor/Channels en el
+portátil requiere validación de arnés, versión y fecha antes de prometerla.

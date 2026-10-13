@@ -70,13 +70,14 @@ async function sdkPeer(env, cwd = '/tmp') {
 async function rawPeer(env, cwd = '/tmp') {
   const child = spawn(process.execPath, [path.join(__dirname, 'index.js')], { cwd, env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'] })
   let sequence = 0, buffer = '', stderr = ''
-  const pending = new Map()
+  const pending = new Map(), notifications = []
   child.stderr.on('data', data => { stderr += data.toString() })
   child.stdout.on('data', data => {
     buffer += data.toString()
     let end
     while ((end = buffer.indexOf('\n')) >= 0) {
       const message = JSON.parse(buffer.slice(0, end)); buffer = buffer.slice(end + 1)
+      if (message.id === undefined && message.method) notifications.push(message)
       if (message.id !== undefined && pending.has(message.id)) { const p = pending.get(message.id); pending.delete(message.id); message.error ? p.reject(new Error(JSON.stringify(message.error))) : p.resolve(message.result) }
     }
   })
@@ -85,7 +86,7 @@ async function rawPeer(env, cwd = '/tmp') {
   const initialized = await request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'independent-raw-harness', version: '1' } })
   child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n')
   return {
-    child, initialized, request, get stderr() { return stderr },
+    child, initialized, request, notifications, get stderr() { return stderr },
     call: async (name, args) => { const r = await request('tools/call', { name, arguments: args }); assert.ok(!r.isError, JSON.stringify(r)); return JSON.parse(r.content[0].text) },
     close: async () => { if (child.exitCode !== null) return; const exit = new Promise(r => child.once('exit', r)); child.stdin.end(); const timer = setTimeout(() => child.kill('SIGTERM'), 1000); await exit; clearTimeout(timer) },
   }

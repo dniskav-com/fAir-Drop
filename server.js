@@ -328,7 +328,7 @@ wss.on('connection', (ws, req) => {
         }
         room.joiner = ws
         room.mode = 'p2p'
-        console.log(`[ROOM] JOINED  ${code}  by ${normIp}${room.creator ? '  (live)' : '  (orphan, esperando reclaim)'}`)
+        console.log(`[${new Date().toISOString()}] [ROOM] JOINED  ${code}  by ${normIp}${room.creator ? '  (live)' : '  (orphan, esperando reclaim)'}`)
         send(ws, { type: 'room-joined', code })
         send(ws, { type: 'client-info', self: peerSummary(clientInfo(ws)), peer: peerSummary(room.creator ? clientInfo(room.creator) : { ip: '?', userAgent: '?', connectedAt: null }) })
         if (room.creator && room.creator.readyState === room.creator.OPEN) {
@@ -358,7 +358,7 @@ wss.on('connection', (ws, req) => {
         room.creator = ws
         room.graceUntil = null
         room.mode = 'p2p'
-        console.log(`[ROOM] RECLAIMED  ${code}  by ${normIp}`)
+        console.log(`[${new Date().toISOString()}] [ROOM] RECLAIMED  ${code}  by ${normIp}`)
         send(ws, { type: 'room-reclaimed', code })
         if (room.joiner && room.joiner.readyState === room.joiner.OPEN) {
           const ci = clientInfo(ws)
@@ -445,7 +445,7 @@ wss.on('connection', (ws, req) => {
     const info = getPeer(ws)
     clients.delete(ws)
     console.log(
-      `[WS] DISCONNECT  ${normIp}  code=${code}  room=${info?.code ?? '-'}  role=${info?.role ?? '-'}`,
+      `[${new Date().toISOString()}] [WS] DISCONNECT  ${normIp}  code=${code}  room=${info?.code ?? '-'}  role=${info?.role ?? '-'}  reason=${code === 1006 ? 'no_close_frame' : code === 1000 ? 'normal_close' : 'protocol_close'}`,
     )
     if (!info) return
     const { code: roomCode, room, role, peer } = info
@@ -456,7 +456,7 @@ wss.on('connection', (ws, req) => {
       // propósito manda "close-room" antes de cerrar (borra la sala ya).
       room.creator = null
       room.graceUntil = Date.now() + ROOM_GRACE_MS
-      console.log(`[ROOM] GRACE  ${roomCode}  ${Math.round(ROOM_GRACE_MS / 1000)}s para que el creador reconecte`)
+      console.log(`[${new Date().toISOString()}] [ROOM] GRACE  ${roomCode}  ${Math.round(ROOM_GRACE_MS / 1000)}s para que el creador reconecte`)
       return
     }
     room.joiner = null

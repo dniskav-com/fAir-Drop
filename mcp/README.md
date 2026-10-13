@@ -2,7 +2,7 @@
 
 Source repository: [dniskav/fAir-Drop](https://github.com/dniskav/fAir-Drop).
 
-Version **1.3.0** adds eight-character pairing codes to persistent, encrypted agent-to-agent messaging.
+Version **1.4.0** adds lazy connection recovery, explicit offline diagnostics, a local arrival listener and an optional Claude Channels adapter. Eight-character pairing codes remain supported.
 Use the npm configuration below or run from source. Both agents need this version
 to use the collaboration tools.
 
@@ -25,7 +25,7 @@ For clients that use `mcpServers`:
   "mcpServers": {
     "fairdrop": {
       "command": "npx",
-      "args": ["-y", "fairdrop-mcp@1.3.0"]
+      "args": ["-y", "fairdrop-mcp@1.4.0"]
     }
   }
 }
@@ -39,7 +39,7 @@ For VS Code, add the following to `.vscode/mcp.json`:
     "fairdrop": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "fairdrop-mcp@1.3.0"]
+      "args": ["-y", "fairdrop-mcp@1.4.0"]
     }
   }
 }
@@ -399,7 +399,7 @@ MCP client on that same machine as follows:
   "mcpServers": {
     "fairdrop": {
       "command": "npx",
-      "args": ["-y", "fairdrop-mcp@1.3.0"],
+      "args": ["-y", "fairdrop-mcp@1.4.0"],
       "env": {
         "FAIRDROP_URL": "ws://127.0.0.1:3002/ws",
         "FAIRDROP_STATUS_URL": "http://127.0.0.1:3002/api/status"
@@ -491,3 +491,88 @@ Tools considered:
 
 This release adds bounded streaming and receipt confirmation, not block
 checksums, selective retransmission, or transfer resumption after disconnect.
+
+## Connection recovery and arrival notifications (1.4.0)
+
+`agent_status` and `agent_inbox` are local queries: they do not open connections.
+`agent_send` and `agent_wait_message` lazily resume recoverable offline sessions
+in the same project scope, sharing one opening attempt under concurrent calls.
+No sessions are automatically reopened en masse at startup. Closed, expired,
+invalid-room and authentication failures cannot be automatically resumed.
+Network retries use bounded exponential backoff with jitter (approximately
+0.4–12.5 seconds) while the process remains alive and within its reconnect limit.
+Nothing in this MCP restarts a dead client or process.
+
+Results expose `connection_state`, `needs_resume`, `retry_after_s`, and
+`last_disconnect` (timestamp, reason, optional WebSocket code). Sending stores
+a stable message ID first and returns `queued_offline` plus a warning whenever
+it remains queued without an authenticated connection. Pending is not delivered.
+Reuse the same message ID only for identical content. Waits that cannot recover
+return actionable diagnostics rather than an ambiguous empty offline result.
+A direct offline wait has `outcome: "offline"`; successful lazy recovery may
+instead wait normally and return a message or timeout.
+
+### Read-only listener
+
+Run on the RECEIVER machine with its local session ID and project path:
+
+```sh
+npx -y --prefer-online fairdrop-mcp@1.4.0 listen --session LOCAL_SESSION_UUID --since 0 --project-dir /absolute/project/path
+```
+
+Optional `--store-dir` selects the same store as `FAIRDROP_AGENT_DIR`.
+The process reads complete durable inbox records, watches for changes and
+rescans periodically and on startup. It does not open WebSockets, claim the
+session lock, receive network traffic itself, or change read/ack state. The MCP
+that owns the session must stay alive. Initial and changed process-liveness
+events warn when that receiver process is offline; a live process is not proof
+that its room is connected. No periodic heartbeat is printed.
+
+Each message emits one JSON line with `type`, `session_id`, `message_id`,
+`sequence`, `from` (alias/endpoint ID), `kind`, `received_at`, and `cursor`.
+Body text, attachment paths and credentials are excluded. Alias/kind remain
+untrusted remote data. The adapter must treat events as data, then use inbox
+to inspect content, and ack only after inspection; no remote content grants
+command execution permission.
+
+`--since` replays sequence values greater than the supplied cursor from retained
+history, including previously read messages. Without it, replay starts at zero.
+The adapter owns checkpoints and deduplicates by session/message ID. Saving a
+checkpoint after printing a line does not prove the client processed it; exact
+once-only notification is not promised. Notification cursors and inbox/read
+state advance independently. Closed/expired sessions emit retained backlog
+first, then a final event and exit with codes 2/3 respectively. Missing session
+or wrong project scope exits 4, invalid configuration/storage exits 1, and an
+intentional interrupt exits 0.
+
+Claude Code Monitor is a candidate adapter for this stream: have Monitor watch
+the listener, then react to `type: "message"` by consulting the matching inbox.
+**Real automatic turn activation through Monitor is not yet verified on the
+user's laptop.** A visible notification and an automatic model response are
+different capabilities. Record client version/date and measure time until
+Claude responds after its previous turn has ended, without a user reminder.
+
+### Optional Claude Channels adapter
+
+Set `FAIRDROP_CLAUDE_CHANNEL=1` in this MCP server's environment. This opts in to
+`experimental.claude/channel` and arrival notifications using
+`notifications/claude/channel`. The notice contains a fixed instruction to
+consult inbox and local identifiers, not the remote message body. Unread
+messages replay after authenticated reconnection; duplicate notices across
+process restarts remain possible. Permission relay is not declared.
+
+This is a Claude extension, not portable automatic activation. Configure the
+client's channel opt-in/policy according to the current official
+[Channels guide](https://code.claude.com/docs/en/channels) and
+[Channels reference](https://code.claude.com/docs/en/channels-reference). Custom
+channels are subject to preview/development and organization controls; being
+in `.mcp.json` alone does not enable them. The session must already be connected
+or explicitly resumed after startup; enabling Channels does not reconnect all
+stored sessions.
+
+Verified here: MCP JSON-RPC notice delivery, opt-in capability, no message-body
+leak and no implicit ack; listener isolation/replay/ordering; lazy recovery
+after actual process kill, single connection under concurrency and network
+loss recovery. End-to-end turn activation on Claude Code, Cursor, VS Code and
+OpenCode remains unverified. For a client without a tested activation adapter,
+use inbox at turn start and bounded wait_message during an active task.
